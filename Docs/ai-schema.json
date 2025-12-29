@@ -1,0 +1,274 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "https://punal.dev/eais/ai-schema.json",
+    "title": "EAIS AI Behavior Schema",
+    "description": "JSON Schema for P_EAIS AI Behavior definitions",
+    "type": "object",
+    "required": [
+        "name",
+        "states"
+    ],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Unique name for this behavior"
+        },
+        "blackboard": {
+            "type": "object",
+            "description": "Initial blackboard values",
+            "additionalProperties": {
+                "oneOf": [
+                    {
+                        "type": "boolean"
+                    },
+                    {
+                        "type": "number"
+                    },
+                    {
+                        "type": "string"
+                    },
+                    {
+                        "type": "null"
+                    }
+                ]
+            }
+        },
+        "states": {
+            "oneOf": [
+                {
+                    "type": "array",
+                    "description": "Array of state definitions",
+                    "items": {
+                        "$ref": "#/definitions/state"
+                    }
+                },
+                {
+                    "type": "object",
+                    "description": "Object map of state definitions",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/stateBody"
+                    }
+                }
+            ]
+        }
+    },
+    "definitions": {
+        "state": {
+            "type": "object",
+            "required": [
+                "id"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "Unique state identifier"
+                },
+                "onEnter": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "onTick": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "onExit": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "transitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/transition"
+                    }
+                }
+            }
+        },
+        "stateBody": {
+            "type": "object",
+            "properties": {
+                "OnEnter": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "OnTick": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "OnExit": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/action"
+                    }
+                },
+                "Transitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/transition"
+                    }
+                }
+            }
+        },
+        "action": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "description": "Name of the action to execute (must be registered in subsystem)"
+                },
+                "Action": {
+                    "type": "string",
+                    "description": "Alternative casing for action name"
+                },
+                "params": {
+                    "$ref": "#/definitions/actionParams"
+                },
+                "Params": {
+                    "$ref": "#/definitions/actionParams"
+                }
+            }
+        },
+        "actionParams": {
+            "type": "object",
+            "properties": {
+                "target": {
+                    "type": "string",
+                    "description": "Target for the action (actor name, location, blackboard key)"
+                },
+                "Target": {
+                    "type": "string"
+                },
+                "power": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Power/speed multiplier (0-1)"
+                },
+                "Power": {
+                    "type": "number"
+                },
+                "speed": {
+                    "type": "number",
+                    "description": "Movement speed"
+                },
+                "Speed": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "transition": {
+            "type": "object",
+            "required": [
+                "to"
+            ],
+            "properties": {
+                "to": {
+                    "type": "string",
+                    "description": "Target state ID"
+                },
+                "Target": {
+                    "type": "string",
+                    "description": "Alternative casing for target state"
+                },
+                "condition": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "$ref": "#/definitions/condition"
+                        }
+                    ]
+                },
+                "Condition": {
+                    "oneOf": [
+                        {
+                            "type": "string"
+                        },
+                        {
+                            "$ref": "#/definitions/condition"
+                        }
+                    ]
+                },
+                "priority": {
+                    "type": "integer",
+                    "default": 0,
+                    "description": "Higher priority transitions are evaluated first"
+                }
+            }
+        },
+        "condition": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "Blackboard",
+                        "Event",
+                        "Timer",
+                        "Distance",
+                        "Custom"
+                    ],
+                    "description": "Type of condition"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Condition name (blackboard key, event name, etc.)"
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Alternative: blackboard key name"
+                },
+                "op": {
+                    "type": "string",
+                    "enum": [
+                        "==",
+                        "!=",
+                        ">",
+                        "<",
+                        ">=",
+                        "<="
+                    ],
+                    "default": "==",
+                    "description": "Comparison operator"
+                },
+                "value": {
+                    "oneOf": [
+                        {
+                            "type": "boolean"
+                        },
+                        {
+                            "type": "number"
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ],
+                    "description": "Value to compare against"
+                },
+                "seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "For Timer conditions: duration in seconds"
+                },
+                "target": {
+                    "type": "string",
+                    "description": "For Distance conditions: target actor/location"
+                }
+            }
+        }
+    }
+}

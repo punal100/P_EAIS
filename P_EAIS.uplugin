@@ -1,0 +1,43 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "P_EAIS",
+	"Description": "Enhanced AI System - Modular, JSON-programmable AI with P_MEIS/P_MWCS integration.",
+	"Category": "AI",
+	"CreatedBy": "Punal Manalan",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "P_EAIS",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "P_EAISTools",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "P_MEIS",
+			"Enabled": true
+		},
+		{
+			"Name": "P_MWCS",
+			"Enabled": true
+		},
+		{
+			"Name": "P_MiniFootball",
+			"Enabled": true
+		}
+	]
+}

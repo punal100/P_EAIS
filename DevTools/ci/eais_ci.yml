@@ -1,0 +1,113 @@
+# ==============================================================================
+# P_EAIS CI Workflow
+# GitHub Actions Example
+# ==============================================================================
+
+name: EAIS CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'Plugins/P_EAIS/**'
+      - '.github/workflows/eais_ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'Plugins/P_EAIS/**'
+  workflow_dispatch:
+
+env:
+  UE_VERSION: "5.2"
+  PROJECT_NAME: "A_MiniFootball"
+
+jobs:
+  build-and-test:
+    name: Build and Test P_EAIS
+    runs-on: self-hosted  # Requires self-hosted runner with UE installed
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify Unreal Engine
+        run: |
+          echo "Checking Unreal Engine installation..."
+          if [ -z "$UE_ROOT" ]; then
+            echo "ERROR: UE_ROOT environment variable not set"
+            exit 1
+          fi
+          if [ ! -d "$UE_ROOT" ]; then
+            echo "ERROR: Unreal Engine not found at $UE_ROOT"
+            exit 1
+          fi
+          echo "Unreal Engine found at $UE_ROOT"
+
+      - name: Build Plugin
+        run: |
+          chmod +x ./Plugins/P_EAIS/DevTools/scripts/build_headless.sh
+          ./Plugins/P_EAIS/DevTools/scripts/build_headless.sh
+
+      - name: Run Automation Tests
+        run: |
+          chmod +x ./Plugins/P_EAIS/DevTools/scripts/run_tests.sh
+          ./Plugins/P_EAIS/DevTools/scripts/run_tests.sh
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: eais-build-artifacts
+          path: |
+            Binaries/**
+            Plugins/P_EAIS/Binaries/**
+          retention-days: 7
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eais-test-results
+          path: |
+            Saved/Automation/**
+            Saved/Logs/**
+          retention-days: 7
+
+  # Optional: Windows build job
+  build-windows:
+    name: Build P_EAIS (Windows)
+    runs-on: self-hosted
+    timeout-minutes: 60
+    if: false  # Disabled by default, enable when Windows runner is available
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Plugin (Windows)
+        shell: cmd
+        run: |
+          call Plugins\P_EAIS\DevTools\scripts\build_headless.bat
+
+      - name: Run Tests (Windows)
+        shell: cmd
+        run: |
+          call Plugins\P_EAIS\DevTools\scripts\run_tests.bat
+
+# ==============================================================================
+# NOTES FOR SELF-HOSTED RUNNER SETUP:
+# 
+# 1. Install Unreal Engine on the runner machine
+# 2. Set UE_ROOT environment variable to the UE installation path
+# 3. Ensure the runner has sufficient disk space (UE projects can be large)
+# 4. For headless rendering, install virtual framebuffer (xvfb) on Linux
+# 5. Consider using a dedicated runner for UE builds due to resource requirements
+#
+# Example xvfb usage for Linux:
+#   xvfb-run -a ./run_tests.sh
+# ==============================================================================
