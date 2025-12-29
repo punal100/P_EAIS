@@ -8,6 +8,7 @@
 #include "PEAIS.h"
 #include "AIBehaviour.h"
 #include "AIInterpreter.h"
+#include "AIAction.h"
 #include "EAIS_Types.h"
 #include "Misc/AutomationTest.h"
 
@@ -89,6 +90,34 @@ bool FEAISBlackboardTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Greater than"), A.Compare(B, EAIConditionOperator::GreaterThan));
     TestFalse(TEXT("Less than"), A.Compare(B, EAIConditionOperator::LessThan));
     TestTrue(TEXT("Not equal"), A.Compare(B, EAIConditionOperator::NotEqual));
+    
+    return true;
+}
+
+// ==============================================================================
+// EAIS.ActionsRegistry.RegisterAndInvoke (Section 10.1)
+// ==============================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEAISActionsRegistryTest, "EAIS.ActionsRegistry.RegisterAndInvoke",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEAISActionsRegistryTest::RunTest(const FString& Parameters)
+{
+    // Test that built-in actions are registered
+    // Note: Full registry testing requires a World context for subsystem access
+    
+    // Verify action class types exist
+    TestNotNull(TEXT("MoveTo action class exists"), UAIAction_MoveTo::StaticClass());
+    TestNotNull(TEXT("Kick action class exists"), UAIAction_Kick::StaticClass());
+    TestNotNull(TEXT("Wait action class exists"), UAIAction_Wait::StaticClass());
+    TestNotNull(TEXT("InjectInput action class exists"), UAIAction_InjectInput::StaticClass());
+    
+    // Verify action names
+    UAIAction_MoveTo* MoveToAction = NewObject<UAIAction_MoveTo>();
+    TestEqual(TEXT("MoveTo action name"), MoveToAction->GetActionName(), FString(TEXT("MoveTo")));
+    
+    UAIAction_Kick* KickAction = NewObject<UAIAction_Kick>();
+    TestEqual(TEXT("Kick action name"), KickAction->GetActionName(), FString(TEXT("Kick")));
     
     return true;
 }

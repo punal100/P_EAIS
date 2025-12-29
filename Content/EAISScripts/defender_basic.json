@@ -1,0 +1,81 @@
+{
+    "id": "defender_basic_v1",
+    "meta": {
+        "name": "Defender Basic",
+        "version": "1.0",
+        "author": "designer"
+    },
+    "blackboard_defaults": {
+        "target_actor": null,
+        "patrol_position": null
+    },
+    "tick_rate": 0.1,
+    "root": {
+        "type": "selector",
+        "children": [
+            {
+                "type": "sequence",
+                "name": "DefendGoal",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "BallInOwnHalf"
+                    },
+                    {
+                        "type": "action",
+                        "name": "MoveToGoal",
+                        "params": {
+                            "tolerance": 300
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "sequence",
+                "name": "TackleOpponent",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "OpponentHasBall"
+                    },
+                    {
+                        "type": "action",
+                        "name": "MoveToActor",
+                        "params": {
+                            "target": "ball_owner"
+                        }
+                    },
+                    {
+                        "type": "action",
+                        "name": "AttemptTackle",
+                        "params": {}
+                    }
+                ]
+            },
+            {
+                "type": "sequence",
+                "name": "InterceptPass",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "BallInMotion"
+                    },
+                    {
+                        "type": "action",
+                        "name": "MoveToBall",
+                        "params": {
+                            "tolerance": 150
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "action",
+                "name": "HoldPosition",
+                "params": {
+                    "target": "patrol_position"
+                }
+            }
+        ]
+    }
+}

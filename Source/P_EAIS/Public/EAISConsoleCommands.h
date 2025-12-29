@@ -29,10 +29,14 @@ private:
     static FAutoConsoleCommand* DebugCommand;
     static FAutoConsoleCommand* InjectEventCommand;
     static FAutoConsoleCommand* ListActionsCommand;
+    static FAutoConsoleCommand* DumpBlackboardCommand;
+    static FAutoConsoleCommand* EmulateInputCommand;
 
     // Command handlers with correct signature for FConsoleCommandWithArgsDelegate
     static void SpawnBotHandler(const TArray<FString>& Args);
     static void SetDebugHandler(const TArray<FString>& Args);
     static void InjectEventHandler(const TArray<FString>& Args);
     static void ListActionsHandler(const TArray<FString>& Args);
+    static void DumpBlackboardHandler(const TArray<FString>& Args);
+    static void EmulateInputHandler(const TArray<FString>& Args);
 };

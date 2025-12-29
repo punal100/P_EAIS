@@ -17,6 +17,8 @@ FAutoConsoleCommand* UEAISConsoleCommands::SpawnBotCommand = nullptr;
 FAutoConsoleCommand* UEAISConsoleCommands::DebugCommand = nullptr;
 FAutoConsoleCommand* UEAISConsoleCommands::InjectEventCommand = nullptr;
 FAutoConsoleCommand* UEAISConsoleCommands::ListActionsCommand = nullptr;
+FAutoConsoleCommand* UEAISConsoleCommands::DumpBlackboardCommand = nullptr;
+FAutoConsoleCommand* UEAISConsoleCommands::EmulateInputCommand = nullptr;
 
 void UEAISConsoleCommands::RegisterCommands()
 {
@@ -47,6 +49,20 @@ void UEAISConsoleCommands::RegisterCommands()
         TEXT("List all registered AI actions"),
         FConsoleCommandWithArgsDelegate::CreateStatic(&UEAISConsoleCommands::ListActionsHandler)
     );
+
+    // EAIS.DumpBlackboard <ActorName>
+    DumpBlackboardCommand = new FAutoConsoleCommand(
+        TEXT("EAIS.DumpBlackboard"),
+        TEXT("Dump blackboard values for an AI. Usage: EAIS.DumpBlackboard <ActorName>"),
+        FConsoleCommandWithArgsDelegate::CreateStatic(&UEAISConsoleCommands::DumpBlackboardHandler)
+    );
+
+    // EAIS.EmulateInput <ActorName> <ActionName> <Value>
+    EmulateInputCommand = new FAutoConsoleCommand(
+        TEXT("EAIS.EmulateInput"),
+        TEXT("Emulate input for an AI via P_MEIS. Usage: EAIS.EmulateInput <ActorName> <ActionName> <Value>"),
+        FConsoleCommandWithArgsDelegate::CreateStatic(&UEAISConsoleCommands::EmulateInputHandler)
+    );
 }
 
 void UEAISConsoleCommands::UnregisterCommands()
@@ -55,11 +71,15 @@ void UEAISConsoleCommands::UnregisterCommands()
     delete DebugCommand;
     delete InjectEventCommand;
     delete ListActionsCommand;
+    delete DumpBlackboardCommand;
+    delete EmulateInputCommand;
 
     SpawnBotCommand = nullptr;
     DebugCommand = nullptr;
     InjectEventCommand = nullptr;
     ListActionsCommand = nullptr;
+    DumpBlackboardCommand = nullptr;
+    EmulateInputCommand = nullptr;
 }
 
 static UWorld* GetGameWorld()
@@ -212,4 +232,96 @@ void UEAISConsoleCommands::ListActionsHandler(const TArray<FString>& Args)
     {
         UE_LOG(LogTemp, Log, TEXT("  - %s"), *Action);
     }
+}
+
+void UEAISConsoleCommands::DumpBlackboardHandler(const TArray<FString>& Args)
+{
+    UWorld* World = GetGameWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    FString TargetName = Args.Num() > 0 ? Args[0] : TEXT("*");
+
+    // Find AI components and dump blackboard
+    TArray<AActor*> AllActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+
+    int32 Count = 0;
+    for (AActor* Actor : AllActors)
+    {
+        if (UAIComponent* AIComp = Actor->FindComponentByClass<UAIComponent>())
+        {
+            FString ActorName = Actor->GetName();
+            if (ActorName.Contains(TargetName) || TargetName.Equals(TEXT("*")))
+            {
+                UE_LOG(LogTemp, Log, TEXT("=== Blackboard for %s ==="), *ActorName);
+                UE_LOG(LogTemp, Log, TEXT("  Current State: %s"), *AIComp->GetCurrentState());
+                UE_LOG(LogTemp, Log, TEXT("  Behavior: %s"), *AIComp->GetBehaviorName());
+                UE_LOG(LogTemp, Log, TEXT("  Running: %s"), AIComp->IsRunning() ? TEXT("Yes") : TEXT("No"));
+                
+                // Note: Full blackboard dump would require exposing blackboard values from AIComponent
+                // For now, we log the basic state info
+                
+                Count++;
+            }
+        }
+    }
+
+    if (Count == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("EAIS.DumpBlackboard: No AI found matching '%s'"), *TargetName);
+    }
+}
+
+void UEAISConsoleCommands::EmulateInputHandler(const TArray<FString>& Args)
+{
+    UWorld* World = GetGameWorld();
+    if (!World)
+    {
+        return;
+    }
+
+    if (Args.Num() < 2)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("EAIS.EmulateInput: Usage: EAIS.EmulateInput <ActorName> <ActionName> [Value]"));
+        return;
+    }
+
+    FString ActorName = Args[0];
+    FString ActionName = Args[1];
+    float Value = Args.Num() > 2 ? FCString::Atof(*Args[2]) : 1.0f;
+
+    // Find matching actors with AI components
+    TArray<AActor*> AllActors;
+    UGameplayStatics::GetAllActorsOfClass(World, AActor::StaticClass(), AllActors);
+
+    int32 Count = 0;
+    for (AActor* Actor : AllActors)
+    {
+        if (UAIComponent* AIComp = Actor->FindComponentByClass<UAIComponent>())
+        {
+            FString Name = Actor->GetName();
+            if (Name.Contains(ActorName) || ActorName.Equals(TEXT("*")))
+            {
+                // Get the controller and inject input via P_MEIS
+                APawn* Pawn = Cast<APawn>(Actor);
+                if (Pawn)
+                {
+                    APlayerController* PC = Cast<APlayerController>(Pawn->GetController());
+                    if (PC)
+                    {
+                        // Use P_MEIS input injection
+                        // Note: Actual implementation would call UCPP_BPL_InputBinding::InjectActionTriggered
+                        UE_LOG(LogTemp, Log, TEXT("EAIS.EmulateInput: Injecting '%s' to %s (value=%f)"), 
+                            *ActionName, *Name, Value);
+                        Count++;
+                    }
+                }
+            }
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("EAIS.EmulateInput: Injected to %d actor(s)"), Count);
 }

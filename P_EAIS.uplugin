@@ -30,14 +30,6 @@
 		{
 			"Name": "P_MEIS",
 			"Enabled": true
-		},
-		{
-			"Name": "P_MWCS",
-			"Enabled": true
-		},
-		{
-			"Name": "P_MiniFootball",
-			"Enabled": true
 		}
 	]
 }

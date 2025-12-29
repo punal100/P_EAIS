@@ -405,7 +405,97 @@ Test files in `Content/AIProfiles/Tests/`:
 
 ---
 
-## 11. Best Practices
+## 11. In-Level Testing Instructions
+
+This section explains how to test AI behaviors directly in the Unreal Editor.
+
+### Step 1: Open a Test Level
+
+1. Open `Content/Maps/L_MiniFootball` (or any gameplay map)
+2. Ensure the level has:
+   - A `NavMeshBoundsVolume` covering the playable area
+   - Goal actors for both teams
+   - A ball spawn point
+
+### Step 2: Spawn AI Bots
+
+Use the console command (press `~` to open console):
+
+```cpp
+// Spawn a Striker on Team A (TeamID 1)
+EAIS.SpawnBot 1 Striker
+
+// Spawn a Defender on Team B (TeamID 2)
+EAIS.SpawnBot 2 Defender
+
+// Spawn a Goalkeeper on Team A
+EAIS.SpawnBot 1 Goalkeeper
+```
+
+### Step 3: Enable Debug Mode
+
+```cpp
+// Turn on debug visualization for all AI
+EAIS.Debug 1
+
+// This shows:
+// - Current state name above each AI
+// - Blackboard values
+// - Transition history
+```
+
+### Step 4: Inject Events
+
+Test event-driven transitions:
+
+```cpp
+// Send event to all AI (use * as wildcard)
+EAIS.InjectEvent * BallSeen
+
+// Send event to specific AI by name
+EAIS.InjectEvent Striker_0 GotBall
+```
+
+### Step 5: Observe Behavior
+
+Watch the AI:
+- **Striker**: Should chase ball, move toward goal, and shoot when close
+- **Defender**: Should patrol, intercept, and tackle
+- **Goalkeeper**: Should stay near goal and block shots
+
+### Step 6: Validate Actions
+
+Check that actions are executing:
+
+```cpp
+// List all registered actions
+EAIS.ListActions
+
+// Output Log will show action execution details when Debug is on
+```
+
+### Manual Verification Checklist
+
+- [ ] AI spawns at correct team spawn point
+- [ ] AI moves toward ball when appropriate
+- [ ] AI transitions between states correctly
+- [ ] AI uses P_MEIS input injection (not direct API calls)
+- [ ] AI respects team boundaries
+- [ ] Blackboard values update correctly
+- [ ] No crashes or infinite loops
+
+### Common Issues
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| AI doesn't move | Missing NavMesh | Add `NavMeshBoundsVolume` and rebuild |
+| AI stuck in state | Missing transition condition | Check JSON for transition rules |
+| AI ignores ball | Blackboard not synced | Verify `AMF_AICharacter::SyncBlackboard()` |
+| Actions not firing | Action not registered | Check `EAIS.ListActions` output |
+
+---
+
+## 12. Best Practices
 
 ### JSON Authoring
 

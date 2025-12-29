@@ -1,0 +1,90 @@
+{
+    "id": "goalkeeper_v1",
+    "meta": {
+        "name": "Goalkeeper",
+        "version": "1.0",
+        "author": "designer"
+    },
+    "blackboard_defaults": {
+        "goal_position": null,
+        "dive_direction": null
+    },
+    "tick_rate": 0.05,
+    "root": {
+        "type": "selector",
+        "children": [
+            {
+                "type": "sequence",
+                "name": "SaveShot",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "BallApproachingGoal"
+                    },
+                    {
+                        "type": "action",
+                        "name": "CalculateDiveDirection",
+                        "params": {}
+                    },
+                    {
+                        "type": "action",
+                        "name": "Dive",
+                        "params": {
+                            "direction": "dive_direction"
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "sequence",
+                "name": "CollectBall",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "BallNearGoal"
+                    },
+                    {
+                        "type": "condition",
+                        "name": "BallLoose"
+                    },
+                    {
+                        "type": "action",
+                        "name": "MoveToBall",
+                        "params": {
+                            "tolerance": 100
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "sequence",
+                "name": "DistributeBall",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "HasBall"
+                    },
+                    {
+                        "type": "action",
+                        "name": "FindOpenPlayer",
+                        "params": {}
+                    },
+                    {
+                        "type": "action",
+                        "name": "AttemptPass",
+                        "params": {
+                            "power": 0.7
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "action",
+                "name": "GuardGoal",
+                "params": {
+                    "tolerance": 200
+                }
+            }
+        ]
+    }
+}

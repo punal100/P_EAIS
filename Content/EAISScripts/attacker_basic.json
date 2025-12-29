@@ -1,0 +1,46 @@
+{
+    "id": "attacker_basic_v1",
+    "meta": {
+        "name": "Attacker Basic",
+        "version": "1.0",
+        "author": "designer"
+    },
+    "blackboard_defaults": {
+        "target_actor": null,
+        "last_kick_time": 0.0
+    },
+    "tick_rate": 0.1,
+    "root": {
+        "type": "selector",
+        "children": [
+            {
+                "type": "sequence",
+                "name": "ShootWhenPossible",
+                "children": [
+                    {
+                        "type": "condition",
+                        "name": "HasBall"
+                    },
+                    {
+                        "type": "action",
+                        "name": "MoveToGoal",
+                        "params": {
+                            "tolerance": 200
+                        }
+                    },
+                    {
+                        "type": "action",
+                        "name": "AttemptShot",
+                        "params": {
+                            "power": 0.85
+                        }
+                    }
+                ]
+            },
+            {
+                "type": "action",
+                "name": "FindBall"
+            }
+        ]
+    }
+}

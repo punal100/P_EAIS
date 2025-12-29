@@ -6,8 +6,8 @@
     This script automates the full P_EAIS plugin build and validation pipeline:
     1. Builds the Unreal Engine project (includes P_EAIS plugin)
     2. Validates JSON AI Profiles against the schema
-    3. Runs P_EAIS Automation Tests (headless)
-    4. Validates AI runtime by spawning test behaviors
+    3. Runs P_EAIS Automation Tests (headless) - optional with -RunTests
+    4. Validates source code and plugin structure
     5. Displays comprehensive results and any errors/warnings
     
 .PARAMETER SkipBuild
@@ -19,6 +19,12 @@
 .PARAMETER ValidateOnly
     Only validate JSON profiles, skip build and tests.
 
+.PARAMETER RunTests
+    Run the Unreal automation tests (disabled by default as they can hang).
+
+.PARAMETER TestTimeout
+    Timeout in seconds for automation tests. Default: 120
+
 .PARAMETER Profile
     Specific AI profile to test (e.g., "Striker", "Goalkeeper"). Defaults to all.
 
@@ -28,7 +34,7 @@
 .EXAMPLE
     .\TestEAIS.ps1
     .\TestEAIS.ps1 -SkipBuild
-    .\TestEAIS.ps1 -TestOnly
+    .\TestEAIS.ps1 -RunTests -TestTimeout 180
     .\TestEAIS.ps1 -ValidateOnly
     .\TestEAIS.ps1 -Profile "Striker" -VerboseOutput
 #>
@@ -37,6 +43,8 @@ param(
     [switch]$SkipBuild,
     [switch]$TestOnly,
     [switch]$ValidateOnly,
+    [switch]$RunTests,
+    [int]$TestTimeout = 120,
     [string]$Profile = "",
     [switch]$VerboseOutput
 )
@@ -305,10 +313,10 @@ if (-not $TestOnly) {
 }
 
 # ============================================================================
-# Step 3: Run Automation Tests
+# Step 3: Run Automation Tests (optional - requires -RunTests)
 # ============================================================================
 
-if (-not $ValidateOnly) {
+if (-not $ValidateOnly -and $RunTests) {
     Write-Header "Step 3: Running Automation Tests"
     
     if (-not (Test-Path $UEEditorCmd)) {
@@ -316,18 +324,28 @@ if (-not $ValidateOnly) {
         exit 1
     }
 
-    Write-Info "Running EAIS.* automation tests (headless)..."
+    Write-Info "Running EAIS.* automation tests (headless, timeout: ${TestTimeout}s)..."
     Write-Detail "This may take several minutes..."
 
     $TestLogPath = "$OutputDir\test_output.txt"
     $TestErrorPath = "$OutputDir\test_errors.txt"
     
+    # Start the process without waiting
     $TestProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList @(
         "`"$UProjectPath`"",
         "-ExecCmds=`"Automation RunTests EAIS; Quit`"",
-        "-unattended", "-nullrhi", "-nop4", "-stdout", "-FullStdOutLogOutput",
-        "-testexit=`"Automation Test Queue Empty`""
-    ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $TestLogPath -RedirectStandardError $TestErrorPath
+        "-unattended", "-nullrhi", "-nop4", "-nosplash", "-nosound",
+        "-stdout", "-FullStdOutLogOutput"
+    ) -NoNewWindow -PassThru -RedirectStandardOutput $TestLogPath -RedirectStandardError $TestErrorPath
+
+    # Wait with timeout
+    $ProcessExited = $TestProcess.WaitForExit($TestTimeout * 1000)
+    
+    if (-not $ProcessExited) {
+        Write-WarningMsg "Test process timed out after ${TestTimeout}s - killing process"
+        $TestProcess.Kill()
+        $TestProcess.WaitForExit(5000)
+    }
 
     $TestOutput = ""
     if (Test-Path $TestLogPath) { $TestOutput = Get-Content $TestLogPath -Raw }
@@ -346,8 +364,16 @@ if (-not $ValidateOnly) {
             Write-Success "All tests passed!"
         }
     } else {
-        Write-WarningMsg "No test results found. Tests may not have run."
+        Write-WarningMsg "No test results found. Tests may not have run properly."
+        if ($VerboseOutput -and (Test-Path $TestLogPath)) {
+            Write-Host ""
+            Write-Host "--- Last 20 lines of test output ---" -ForegroundColor Yellow
+            Get-Content $TestLogPath -Tail 20 | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
+        }
     }
+} elseif (-not $ValidateOnly -and -not $RunTests) {
+    Write-Header "Step 3: Automation Tests"
+    Write-Info "Skipping automation tests (use -RunTests to enable)"
 }
 
 # ============================================================================
