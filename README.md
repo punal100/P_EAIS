@@ -1,6 +1,6 @@
 # P_EAIS - Enhanced AI System
 
-**P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime**, a **Visual Editor (Edutor)**, and deep integration with **P_MEIS** (Input) and **P_MWCS** (UI).
+**P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime**, a **Visual AI Editor**, and deep integration with **P_MEIS** (Input) and **P_MWCS** (UI).
 
 It brings the "Old RPG" style of transparent, state-machine driven AI to modern Unreal Engine projects, with a focus on fairness (AI uses the same Input API as players via P_MEIS injection).
 
@@ -10,7 +10,7 @@ It brings the "Old RPG" style of transparent, state-machine driven AI to modern 
 - **State Machine Runtime:** Hierarchical states with transitions, conditions, and actions.
 - **Blackboard System:** Per-instance key-value storage for AI memory.
 - **Input Injection:** AI agents "press buttons" via `P_MEIS` Injection, ensuring they play by the same rules as humans.
-- **Visual Editor (Edutor):** Node-based editor for authoring AI behaviors.
+- **Visual AI Editor:** Editor Utility Widget for creating, editing, validating, and testing AI behaviors.
 - **Headless Automation:** Includes scripts for headless building, testing, and CI integration.
 - **MiniFootball Ready:** Comes with `Striker`, `Defender`, and `Goalkeeper` AI profiles.
 
@@ -20,7 +20,7 @@ It brings the "Old RPG" style of transparent, state-machine driven AI to modern 
 P_MEIS (Input) -> P_EAIS (Decision / JSON interpreter) -> Pawn/Controller -> P_MiniFootball Gameplay
                                  ^
                                  |
-                            Edutor (UMG/Slate) ---- P_MWCS (Widget creation + preview)
+                            AI Editor (UMG) ---- P_MWCS (Widget creation)
 ```
 
 ## 🚀 Quick Start
@@ -50,10 +50,19 @@ AIComp->JsonFilePath = TEXT("Striker.json");
 AIComp->bAutoStart = true;
 ```
 
-### 4. Open Edutor (Editor Tool)
+### 4. Open the Visual AI Editor
 
-- Window → Developer Tools → EAIS Edutor
-- Or right-click `EUW_EAIS_Editor` in `Content/Editor` and select "Run Editor Utility Widget"
+```cpp
+// Option 1: From Menu
+Window → Developer Tools → EAIS AI Editor
+
+// Option 2: Run directly
+Run EUW_EAIS_AIEditor in Content/P_EAIS/Editor/
+```
+
+### 5. Create AI Profiles (JSON)
+
+Create JSON files in `Content/AIProfiles/`. See [GUIDE.md](GUIDE.md) for step-by-step authoring instructions.
 
 ## 📂 Folder Structure
 
@@ -63,15 +72,15 @@ P_EAIS/
 │   ├── P_EAIS/                  # Runtime module
 │   │   ├── Public/              # Headers (EAIS_Types, AIBehaviour, AIInterpreter, etc.)
 │   │   └── Private/             # Implementations
-│   └── P_EAISTools/             # Editor module (Edutor)
+│   └── P_EAISTools/             # Editor module (AI Editor)
 ├── Content/
-│   └── Editor/                  # Editor assets
+│   └── Editor/                  # Editor Utility Widgets
 ├── DevTools/
 │   ├── scripts/                 # build_headless.sh/.bat, run_tests.sh/.bat
 │   └── ci/                      # GitHub Actions workflow
 ├── Docs/
-│   ├── ai-schema.json           # JSON Schema for validation
-│   └── GUIDE.md                 # Developer guide
+│   ├── README.md
+│   └── GUIDE.md
 ├── Config/
 │   └── DefaultEAIS.ini          # Plugin configuration
 └── P_EAIS.uplugin
@@ -82,6 +91,46 @@ P_EAIS/
 - `Defender.json` - Defensive AI  
 - `Goalkeeper.json` - Goal protection AI
 - `Tests/` - Automation test profiles
+
+### MiniFootball AI Character Integration
+
+In `P_MiniFootball`, all match characters are `AMF_AICharacter` instances:
+
+- **Match Start**: All characters are AI-controlled
+- **Human Joins**: AI stops for that character → Human takes control
+- **Human Switches (Q)**: Previous character resumes AI automatically
+- **Human Leaves**: Character immediately resumes AI
+
+This is achieved via `PossessedBy()` / `UnPossessed()` overrides that stop/start AI based on controller type.
+
+See [P_MiniFootball README](../P_MiniFootball/README.md) for full details.
+
+## 🎨 Visual AI Editor
+
+The Visual AI Editor provides a graphical interface for creating and managing AI behaviors.
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Load/Save** | Load existing profiles, save new ones |
+| **JSON Editor** | Direct JSON editing with syntax highlighting |
+| **Validate** | Check JSON against schema for errors |
+| **Format** | Auto-format/prettify JSON |
+| **Test Spawn** | Instantly spawn AI with current profile |
+
+### Opening the Editor
+
+1. **From Menu:** Window → Developer Tools → EAIS AI Editor
+2. **Direct:** Run `EUW_EAIS_AIEditor` Editor Utility Widget
+
+### Editor Workflow
+
+1. **New Profile:** Click "New" to create a template
+2. **Edit:** Modify the JSON in the editor panel
+3. **Validate:** Click "Validate" to check for errors
+4. **Save:** Enter a name and click "Save"
+5. **Test:** Click "Test Spawn AI" to see it in action
 
 ## 🧪 Testing
 
@@ -127,10 +176,10 @@ This ensures AI uses the exact same input processing pipeline as players.
 
 ### P_MWCS (UI)
 
-The **Edutor** tool itself is generated by `P_MWCS` from a JSON specification:
+The **AI Editor** tool is generated by `P_MWCS` from a JSON specification:
 
 ```
-Spec → P_MWCS → EUW_EAIS_Editor.uasset
+Spec → P_MWCS → EUW_EAIS_AIEditor.uasset
 ```
 
 To regenerate:
@@ -161,7 +210,7 @@ AI behaviors are defined in JSON. See `Docs/ai-schema.json` for the full schema.
     "ChaseBall": {
       "OnTick": [{ "Action": "MoveTo", "Params": { "Target": "ball" } }],
       "Transitions": [
-        { "Target": "Shoot", "Condition": "HasBall" }
+        { "Target": "Shoot", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
       ]
     },
     "Shoot": {
@@ -223,5 +272,5 @@ Part of the A_MiniFootball project by Punal Manalan.
 
 ## 📚 Further Reading
 
-- [GUIDE.md](GUIDE.md) - Detailed developer guide
+- [GUIDE.md](GUIDE.md) - Detailed developer guide with step-by-step AI authoring
 - [Docs/ai-schema.json](Docs/ai-schema.json) - JSON Schema reference

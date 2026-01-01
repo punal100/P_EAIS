@@ -30,4 +30,8 @@ public:
 private:
 	void RegisterMenuExtensions();
 	void UnregisterMenuExtensions();
+
+public:
+	/** Open the EAIS AI Editor widget */
+	static void OpenAIEditor();
 };

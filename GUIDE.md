@@ -10,7 +10,7 @@ This guide covers the implementation details, extension points, and workflow for
 4. [Creating Custom Actions](#4-creating-custom-actions)
 5. [Adding Condition Providers](#5-adding-condition-providers)
 6. [Blackboard System](#6-blackboard-system)
-7. [Edutor Editor Tool](#7-edutor-editor-tool)
+7. [Visual AI Editor](#7-visual-ai-editor)
 8. [P_MEIS Integration](#8-p_meis-integration)
 9. [Debugging & Profiling](#9-debugging--profiling)
 10. [CI/Automation](#10-ciautomation)
@@ -104,6 +104,220 @@ By default, AI runs on the **server** only (`EAIRunMode::Server`). This ensures 
 ### Operators
 
 `==`, `!=`, `>`, `<`, `>=`, `<=`
+
+### Step-by-Step: Writing Your First AI Profile
+
+Follow this guide to create a custom AI behavior from scratch.
+
+#### Step 1: Create the JSON File
+
+Create a new file in `Content/AIProfiles/` (e.g., `MyCustomAI.json`):
+
+```json
+{
+  "name": "MyCustomAI",
+  "blackboard": {},
+  "states": {}
+}
+```
+
+#### Step 2: Define Initial Blackboard Values
+
+The blackboard stores AI memory. Define default values:
+
+```json
+{
+  "name": "MyCustomAI",
+  "blackboard": {
+    "HasBall": false,
+    "NearGoal": false,
+    "Tired": false
+  },
+  "states": {}
+}
+```
+
+#### Step 3: Create the First State (Idle)
+
+Every AI needs a starting state. The first state in `states` becomes the initial state:
+
+```json
+"states": {
+  "Idle": {
+    "OnEnter": [
+      { "Action": "LookAround" }
+    ],
+    "OnTick": [],
+    "Transitions": [
+      { "Target": "ChaseBall", "Condition": { "type": "Event", "name": "BallSeen" } }
+    ]
+  }
+}
+```
+
+#### Step 4: Add More States
+
+Build out the behavior with additional states:
+
+```json
+"ChaseBall": {
+  "OnTick": [
+    { "Action": "MoveTo", "Params": { "Target": "ball" } }
+  ],
+  "Transitions": [
+    { "Target": "AttackGoal", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
+  ]
+},
+"AttackGoal": {
+  "OnEnter": [
+    { "Action": "AimAt", "Params": { "Target": "opponentGoal" } }
+  ],
+  "OnTick": [
+    { "Action": "MoveTo", "Params": { "Target": "opponentGoal", "Speed": 1.0 } }
+  ],
+  "Transitions": [
+    { "Target": "Shoot", "Condition": { "type": "Distance", "target": "opponentGoal", "op": "<", "value": 800 } },
+    { "Target": "ChaseBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": false } }
+  ]
+},
+"Shoot": {
+  "OnEnter": [
+    { "Action": "Kick", "Params": { "Power": 0.95 } }
+  ],
+  "Transitions": [
+    { "Target": "Idle", "Condition": { "type": "Timer", "seconds": 0.5 } }
+  ]
+}
+```
+
+#### Step 5: Complete Example
+
+Here's a complete, functional AI profile:
+
+```json
+{
+  "name": "CustomStriker",
+  "blackboard": {
+    "HasBall": false,
+    "shotCooldown": 0.0
+  },
+  "states": {
+    "Idle": {
+      "OnEnter": [{ "Action": "LookAround" }],
+      "OnTick": [],
+      "Transitions": [
+        { "Target": "ChaseBall", "Condition": { "type": "Event", "name": "BallSeen" } },
+        { "Target": "ChaseBall", "Condition": { "type": "Timer", "seconds": 2.0 } }
+      ]
+    },
+    "ChaseBall": {
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ball" } }
+      ],
+      "Transitions": [
+        { "Target": "AttackGoal", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
+      ]
+    },
+    "AttackGoal": {
+      "OnEnter": [
+        { "Action": "AimAt", "Params": { "Target": "opponentGoal" } }
+      ],
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "opponentGoal", "Speed": 1.0 } }
+      ],
+      "Transitions": [
+        { "Target": "Shoot", "Condition": { "type": "Distance", "target": "opponentGoal", "op": "<", "value": 800 } },
+        { "Target": "ChaseBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": false } }
+      ]
+    },
+    "Shoot": {
+      "OnEnter": [
+        { "Action": "Kick", "Params": { "Power": 0.9 } }
+      ],
+      "Transitions": [
+        { "Target": "Idle", "Condition": { "type": "Timer", "seconds": 0.5 } }
+      ]
+    }
+  }
+}
+```
+
+#### Step 6: Test Your Profile
+
+1. Save the file as `Content/AIProfiles/CustomStriker.json`
+2. Open the game and run:
+```cpp
+EAIS.SpawnBot 1 CustomStriker
+EAIS.Debug 1
+```
+3. Watch the AI state changes above the character
+
+### Available Actions Reference
+
+| Action | Description | Parameters |
+|--------|-------------|------------|
+| `MoveTo` | Navigate to target | `Target`: "ball", "opponentGoal", "ownGoal", "home" <br> `Speed`: 0.0-1.0 (optional) |
+| `Kick` | Kick the ball | `Power`: 0.0-1.0 |
+| `AimAt` | Set look direction | `Target`: "ball", "opponentGoal", actor name |
+| `SetLookTarget` | Focus on target | `Target`: actor reference |
+| `Wait` | Do nothing for duration | `Power`: seconds |
+| `SetBlackboardKey` | Update blackboard | `Target`: key name, `value`: any |
+| `InjectInput` | Press a button via P_MEIS | `Target`: action name (e.g., "Jump", "Sprint") |
+| `PassToTeammate` | Pass to nearest teammate | `Power`: 0.0-1.0 |
+| `LookAround` | Clear focus target | (none) |
+
+### Blackboard Keys (Auto-Synced by MF_AICharacter)
+
+These keys are automatically updated from game state:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `HasBall` | Bool | Does this character have the ball? |
+| `Ball` | Object | Reference to the ball actor |
+| `BallPosition` | Vector | World location of the ball |
+| `TeamID` | Float | Team enum as float (0=None, 1=TeamA, 2=TeamB) |
+| `IsStunned` | Bool | Is character currently stunned? |
+| `IsSprinting` | Bool | Is character sprinting? |
+| `MyPosition` | Vector | Character's world location |
+| `Controller` | Object | Current controller reference |
+
+### Common Patterns
+
+#### Patrol Behavior
+```json
+"Patrol": {
+  "OnTick": [
+    { "Action": "MoveTo", "Params": { "Target": "home", "Speed": 0.5 } }
+  ],
+  "Transitions": [
+    { "Target": "ChaseBall", "Condition": { "type": "Distance", "target": "ball", "op": "<", "value": 1000 } }
+  ]
+}
+```
+
+#### Defensive Positioning
+```json
+"DefendGoal": {
+  "OnTick": [
+    { "Action": "MoveTo", "Params": { "Target": "ownGoal", "Speed": 0.7 } }
+  ],
+  "Transitions": [
+    { "Target": "Intercept", "Condition": { "type": "Distance", "target": "ball", "op": "<", "value": 500 } }
+  ]
+}
+```
+
+#### Cooldown After Action
+```json
+"AfterShot": {
+  "OnEnter": [
+    { "Action": "SetBlackboardKey", "Params": { "Target": "shotCooldown", "value": 3.0 } }
+  ],
+  "Transitions": [
+    { "Target": "Idle", "Condition": { "type": "Timer", "seconds": 1.0 } }
+  ]
+}
+```
 
 ---
 
@@ -273,32 +487,234 @@ void ABall::OnPossessionChanged(APawn* NewOwner)
 
 ---
 
-## 7. Edutor Editor Tool
+## 7. Visual AI Editor
 
-Edutor is the visual editor for authoring AI behaviors.
+The Visual AI Editor is a graphical tool for creating, editing, validating, and testing AI behavior profiles.
 
-### Opening Edutor
+### Opening the Editor
 
-1. Window → Developer Tools → EAIS Edutor
-2. Or: Run `EUW_EAIS_Editor` as Editor Utility Widget
+**Option 1: From Menu**
+- Window → Developer Tools → EAIS AI Editor
 
-### Features
+**Option 2: Direct**
+- Run `EUW_EAIS_AIEditor` as Editor Utility Widget from `Content/P_EAIS/Editor/`
 
-- **Load/Save:** Import/export JSON files
-- **Validate:** Check against `ai-schema.json`
-- **State Graph:** Visual node editor
-- **Inspector:** Edit selected state/action properties
-- **Preview:** Attach to in-editor AI and debug
+### Editor Interface
 
-### Regenerating Edutor UI
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  EAIS AI Editor                    [Dropdown] [Load] [New]      │
+├─────────────────────────────────────────────────────────────────┤
+│  Profile Name: [____________]                           [Save]  │
+├─────────────────────────────────────────────────────────────────┤
+│                                           │                     │
+│  JSON Editor            [Format][Validate]│  States             │
+│  ┌────────────────────────────────────┐   │  ┌───────────────┐  │
+│  │{                                   │   │  │ • Idle        │  │
+│  │  "name": "MyAI",                   │   │  │ • ChaseBall   │  │
+│  │  "states": {                       │   │  │ • Shoot       │  │
+│  │    "Idle": { ... }                 │   │  └───────────────┘  │
+│  │  }                                 │   │                     │
+│  │}                                   │   │  Inspector          │
+│  └────────────────────────────────────┘   │  ┌───────────────┐  │
+│                                           │  │ [Properties]  │  │
+│                                           │  └───────────────┘  │
+├─────────────────────────────────────────────────────────────────┤
+│  Ready                          ✓ Valid         [Test Spawn AI] │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-The Edutor UI is generated by P_MWCS:
+### Editor Features
+
+| Feature | Button | Description |
+|---------|--------|-------------|
+| **New** | `New` | Create a new profile from template |
+| **Load** | `Load` | Load selected profile from dropdown |
+| **Save** | `Save` | Save current profile to file |
+| **Validate** | `Validate` | Check JSON for errors |
+| **Format** | `Format` | Auto-format/prettify JSON |
+| **Test Spawn** | `Test Spawn AI` | Spawn AI with current profile in-game |
+
+### Step-by-Step: Creating an AI Profile in the Editor
+
+#### Step 1: Open the Editor
+```
+Window → Developer Tools → EAIS AI Editor
+```
+
+#### Step 2: Create New Profile
+Click **New** to get a starter template:
+
+```json
+{
+  "name": "NewProfile",
+  "blackboard": {
+    "HasBall": false
+  },
+  "states": {
+    "Idle": {
+      "OnEnter": [{ "Action": "LookAround" }],
+      "OnTick": [],
+      "Transitions": [
+        { "Target": "ChaseBall", "Condition": { "type": "Event", "name": "BallSeen" } }
+      ]
+    },
+    "ChaseBall": {
+      "OnTick": [{ "Action": "MoveTo", "Params": { "Target": "ball" } }],
+      "Transitions": [
+        { "Target": "Idle", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
+      ]
+    }
+  }
+}
+```
+
+#### Step 3: Edit the JSON
+Modify the JSON directly in the editor. Add states, actions, and transitions.
+
+#### Step 4: Validate
+Click **Validate** to check for errors:
+- ✓ Valid = Green checkmark, ready to save
+- ✕ Error = Red X with error message
+
+#### Step 5: Save
+1. Enter a profile name (e.g., "MyCustomAI")
+2. Click **Save**
+3. File is saved to `Content/AIProfiles/MyCustomAI.json`
+
+#### Step 6: Test
+Click **Test Spawn AI** to spawn an AI character using your profile.
+
+### Example: Creating a Defender AI
+
+```json
+{
+  "name": "Defender",
+  "blackboard": {
+    "HasBall": false,
+    "EnemyNear": false,
+    "HomePosition": [0, 0, 0]
+  },
+  "states": {
+    "Guard": {
+      "OnEnter": [
+        { "Action": "SetLookTarget", "Params": { "Target": "ball" } }
+      ],
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ownGoal", "Speed": 0.4 } }
+      ],
+      "Transitions": [
+        { "Target": "Intercept", "Condition": { "type": "Distance", "target": "ball", "op": "<", "value": 800 } },
+        { "Target": "ChaseBall", "Condition": { "type": "Blackboard", "key": "EnemyNear", "op": "==", "value": true } }
+      ]
+    },
+    "Intercept": {
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ball", "Speed": 1.0 } }
+      ],
+      "Transitions": [
+        { "Target": "ClearBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } },
+        { "Target": "Guard", "Condition": { "type": "Distance", "target": "ball", "op": ">", "value": 1500 } }
+      ]
+    },
+    "ChaseBall": {
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ball" } }
+      ],
+      "Transitions": [
+        { "Target": "ClearBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
+      ]
+    },
+    "ClearBall": {
+      "OnEnter": [
+        { "Action": "AimAt", "Params": { "Target": "opponentGoal" } },
+        { "Action": "Kick", "Params": { "Power": 0.8 } }
+      ],
+      "Transitions": [
+        { "Target": "Guard", "Condition": { "type": "Timer", "seconds": 0.5 } }
+      ]
+    }
+  }
+}
+```
+
+### Example: Creating a Goalkeeper AI
+
+```json
+{
+  "name": "Goalkeeper",
+  "blackboard": {
+    "HasBall": false,
+    "BallDangerous": false
+  },
+  "states": {
+    "Position": {
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ownGoal", "Speed": 0.3 } },
+        { "Action": "SetLookTarget", "Params": { "Target": "ball" } }
+      ],
+      "Transitions": [
+        { "Target": "Dive", "Condition": { "type": "Distance", "target": "ball", "op": "<", "value": 400 } },
+        { "Target": "Rush", "Condition": { "type": "Blackboard", "key": "BallDangerous", "op": "==", "value": true } }
+      ]
+    },
+    "Dive": {
+      "OnEnter": [
+        { "Action": "MoveTo", "Params": { "Target": "ball", "Speed": 1.0 } }
+      ],
+      "Transitions": [
+        { "Target": "ClearBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } },
+        { "Target": "Position", "Condition": { "type": "Timer", "seconds": 1.5 } }
+      ]
+    },
+    "Rush": {
+      "OnTick": [
+        { "Action": "MoveTo", "Params": { "Target": "ball", "Speed": 0.9 } }
+      ],
+      "Transitions": [
+        { "Target": "ClearBall", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } },
+        { "Target": "Position", "Condition": { "type": "Distance", "target": "ball", "op": ">", "value": 600 } }
+      ]
+    },
+    "ClearBall": {
+      "OnEnter": [
+        { "Action": "AimAt", "Params": { "Target": "teammate" } },
+        { "Action": "Kick", "Params": { "Power": 0.7 } }
+      ],
+      "Transitions": [
+        { "Target": "Position", "Condition": { "type": "Timer", "seconds": 0.5 } }
+      ]
+    }
+  }
+}
+```
+
+### Validation Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| "Invalid JSON syntax" | Malformed JSON | Check brackets, commas, quotes |
+| "Missing required field: 'name'" | No `name` field | Add `"name": "ProfileName"` |
+| "Missing required field: 'states'" | No `states` object | Add `"states": { ... }` |
+| "State 'X' must be an object" | State is not an object | Ensure state is `{ }` not string |
+
+### Keyboard Shortcuts (In JSON Editor)
+
+| Key | Action |
+|-----|--------|
+| `Ctrl+S` | Save profile |
+| `Ctrl+Shift+F` | Format JSON |
+| `F5` | Validate |
+
+### Regenerating the Editor Widget
+
+If you need to regenerate the Editor UI:
 
 ```powershell
 .\DevTools\scripts\generate_Editor.bat
 ```
 
-This runs `MWCS_CreateWidgets` with the `EAIS_EditorWidgetSpec`.
+This runs P_MWCS to create `EUW_EAIS_AIEditor` from the widget spec.
 
 ---
 
@@ -389,7 +805,7 @@ Use Unreal Insights or `stat P_EAIS` (if implemented) to profile AI tick costs.
 |--------|---------|
 | `build_headless.bat/.sh` | Compile plugin |
 | `run_tests.bat/.sh` | Run automation tests |
-| `generate_Editor.bat` | Regenerate Edutor via P_MWCS |
+| `generate_Editor.bat` | Regenerate Editor via P_MWCS |
 
 ### GitHub Actions
 
