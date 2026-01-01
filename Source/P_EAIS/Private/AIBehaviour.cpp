@@ -286,28 +286,31 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                 Trans.To = TransObj->GetStringField(TEXT("to"));
                             }
                             
-                            // Parse condition
-                            FString ConditionStr = TransObj->GetStringField(TEXT("Condition"));
-                            if (ConditionStr.IsEmpty())
+                            // Parse condition - check type first to avoid errors
+                            TSharedPtr<FJsonValue> ConditionField = TransObj->TryGetField(TEXT("Condition"));
+                            if (!ConditionField.IsValid())
                             {
-                                ConditionStr = TransObj->GetStringField(TEXT("condition"));
+                                ConditionField = TransObj->TryGetField(TEXT("condition"));
                             }
                             
-                            // Simple condition parsing - just use the name as blackboard check
+                            // Default condition (for string shortcuts)
                             Trans.Condition.Type = EAIConditionType::Blackboard;
-                            Trans.Condition.Name = ConditionStr;
                             Trans.Condition.Operator = EAIConditionOperator::Equal;
                             Trans.Condition.Value = TEXT("true");
                             
-                            // Check for complex condition object
                             TSharedPtr<FJsonObject> CondObj;
-                            if (TransObj->HasTypedField<EJson::Object>(TEXT("condition")))
+                            if (ConditionField.IsValid())
                             {
-                                CondObj = TransObj->GetObjectField(TEXT("condition"));
-                            }
-                            else if (TransObj->HasTypedField<EJson::Object>(TEXT("Condition")))
-                            {
-                                CondObj = TransObj->GetObjectField(TEXT("Condition"));
+                                if (ConditionField->Type == EJson::String)
+                                {
+                                    // String shortcut: "Condition": "HasBall" → Blackboard check for HasBall == true
+                                    Trans.Condition.Name = ConditionField->AsString();
+                                }
+                                else if (ConditionField->Type == EJson::Object)
+                                {
+                                    // Full object condition
+                                    CondObj = ConditionField->AsObject();
+                                }
                             }
                             
                             if (CondObj.IsValid())

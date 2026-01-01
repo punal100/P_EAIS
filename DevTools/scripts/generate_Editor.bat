@@ -9,7 +9,7 @@ set UPROJECT_PATH="%~dp0..\..\..\..\A_MiniFootball.uproject"
 
 echo [EAIS] Generating Editor Tool Widget...
 
-%UE_EDITOR_CMD% %UPROJECT_PATH% -run=MWCS_CreateWidgets -Mode=ForceRecreate -SpecClasses="EAIS_EditorWidgetSpec" -unattended -nullrhi -nocpu -nosound -stdout -FullStdOutLogOutput
+%UE_EDITOR_CMD% %UPROJECT_PATH% -run=MWCS_CreateWidgets -Mode=ForceRecreate -unattended -nullrhi -nocpu -nosound -stdout -FullStdOutLogOutput
 
 if %ERRORLEVEL% NEQ 0 (
     echo [EAIS] Editor Generation FAILED!

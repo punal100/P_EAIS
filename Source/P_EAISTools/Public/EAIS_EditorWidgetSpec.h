@@ -26,5 +26,5 @@ public:
 
     /** Get the widget class name for P_MWCS */
     UFUNCTION(BlueprintPure, Category = "EAIS Editor")
-    static FString GetWidgetClassName() { return TEXT("EUW_EAIS_Editor"); }
+    static FString GetWidgetClassName() { return TEXT("EUW_EAIS_AIEditor"); }
 };

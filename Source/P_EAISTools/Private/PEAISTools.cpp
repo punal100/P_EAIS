@@ -2,17 +2,15 @@
  * @Author: Punal Manalan
  * @Description: P_EAISTools Module Implementation
  * @Date: 29/12/2025
- * @Updated: 01/01/2026 - Fixed Editor typo, implemented OpenEditor functionality
+ * @Updated: 01/01/2026 - Refactored to use EAIS_ToolTab for editor window
  */
 
 #include "PEAISTools.h"
-#include "EAIS_AIEditor.h"
+#include "EAIS_ToolTab.h"
 #include "LevelEditor.h"
+#include "ToolMenus.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "EditorUtilityWidget.h"
-#include "EditorUtilityWidgetBlueprint.h"
-#include "EditorUtilitySubsystem.h"
-#include "Editor.h"
+#include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "FPEAISToolsModule"
 
@@ -21,6 +19,9 @@ DEFINE_LOG_CATEGORY(LogEAISTools);
 void FPEAISToolsModule::StartupModule()
 {
 	UE_LOG(LogEAISTools, Log, TEXT("P_EAISTools Module Starting..."));
+
+	// Register the EAIS Tool Tab
+	FEAIS_ToolTab::Register();
 
 	RegisterMenuExtensions();
 
@@ -33,39 +34,34 @@ void FPEAISToolsModule::ShutdownModule()
 
 	UnregisterMenuExtensions();
 
+	// Unregister the EAIS Tool Tab
+	FEAIS_ToolTab::Unregister();
+
 	UE_LOG(LogEAISTools, Log, TEXT("P_EAISTools Module Shut Down."));
 }
 
 void FPEAISToolsModule::RegisterMenuExtensions()
 {
 	// Register menu extensions for AI Editor access
-	// Window -> Developer Tools -> EAIS AI Editor
+	// Tools -> EAIS -> AI Editor
 	
-	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
+	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateLambda([]()
 	{
-		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-		
-		TSharedPtr<FExtender> MenuExtender = MakeShareable(new FExtender());
-		MenuExtender->AddMenuExtension(
-			"LevelEditor",
-			EExtensionHook::After,
-			nullptr,
-			FMenuExtensionDelegate::CreateLambda([](FMenuBuilder& MenuBuilder)
-			{
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("EAISEditorLabel", "EAIS AI Editor"),
-					LOCTEXT("EAISEditorTooltip", "Open the EAIS Visual AI Editor Tool"),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([]()
-					{
-						OpenAIEditor();
-					}))
-				);
-			})
-		);
-
-		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
-	}
+		UToolMenu* ToolsMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
+		if (ToolsMenu)
+		{
+			FToolMenuSection& Section = ToolsMenu->FindOrAddSection("EAISTools");
+			Section.Label = LOCTEXT("EAISToolsSection", "EAIS");
+			
+			Section.AddMenuEntry(
+				"OpenEAISAIEditor",
+				LOCTEXT("EAISEditorLabel", "EAIS AI Editor"),
+				LOCTEXT("EAISEditorTooltip", "Open the EAIS Visual AI Editor Tool"),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit"),
+				FUIAction(FExecuteAction::CreateStatic(&FPEAISToolsModule::OpenAIEditor))
+			);
+		}
+	}));
 }
 
 void FPEAISToolsModule::UnregisterMenuExtensions()
@@ -77,24 +73,13 @@ void FPEAISToolsModule::OpenAIEditor()
 {
 	UE_LOG(LogEAISTools, Log, TEXT("Opening EAIS AI Editor..."));
 
-	// Try to find and open the Editor Utility Widget
-	const FString EditorWidgetPath = TEXT("/P_EAIS/Editor/EUW_EAIS_AIEditor.EUW_EAIS_AIEditor");
-	
-	if (UEditorUtilityWidgetBlueprint* WidgetBP = LoadObject<UEditorUtilityWidgetBlueprint>(nullptr, *EditorWidgetPath))
-	{
-		if (UEditorUtilitySubsystem* Subsystem = GEditor->GetEditorSubsystem<UEditorUtilitySubsystem>())
-		{
-			Subsystem->SpawnAndRegisterTab(WidgetBP);
-			UE_LOG(LogEAISTools, Log, TEXT("EAIS AI Editor opened successfully."));
-		}
-	}
-	else
-	{
-		UE_LOG(LogEAISTools, Warning, TEXT("Could not find AI Editor widget at: %s"), *EditorWidgetPath);
-		UE_LOG(LogEAISTools, Warning, TEXT("Run 'DevTools/scripts/generate_Editor.bat' to generate the widget."));
-	}
+	// Open the EAIS Tool Tab (Slate-based editor window)
+	FEAIS_ToolTab::Open();
+
+	UE_LOG(LogEAISTools, Log, TEXT("EAIS AI Editor opened."));
 }
 
 #undef LOCTEXT_NAMESPACE
 	
 IMPLEMENT_MODULE(FPEAISToolsModule, P_EAISTools)
+

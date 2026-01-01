@@ -7,7 +7,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Blueprint/UserWidget.h"
+#include "EditorUtilityWidget.h"
 #include "EAIS_AIEditor.generated.h"
 
 class UButton;
@@ -30,7 +30,7 @@ class UBorder;
  * - Preview AI behavior on selected character
  */
 UCLASS()
-class P_EAISTOOLS_API UEAIS_AIEditor : public UUserWidget
+class P_EAISTOOLS_API UEAIS_AIEditor : public UEditorUtilityWidget
 {
     GENERATED_BODY()
 

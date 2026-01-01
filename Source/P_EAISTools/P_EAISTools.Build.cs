@@ -38,10 +38,12 @@ public class P_EAISTools : ModuleRules
 				"Blutility",
 				"UMGEditor",
 				"LevelEditor",     // For menu extensions
+				"ToolMenus",       // For UToolMenus API
 				"EditorStyle",
 				"PropertyEditor",
 				"Json",
 				"JsonUtilities",
+				"ApplicationCore", // For FPlatformApplicationMisc::ClipboardCopy
 			}
 		);
 	}

@@ -493,53 +493,41 @@ The Visual AI Editor is a graphical tool for creating, editing, validating, and 
 
 ### Opening the Editor
 
-**Option 1: From Menu**
-- Window → Developer Tools → EAIS AI Editor
+**From Menu:** Tools → EAIS → EAIS AI Editor
 
-**Option 2: Direct**
-- Run `EUW_EAIS_AIEditor` as Editor Utility Widget from `Content/P_EAIS/Editor/`
+This opens a dockable Slate-based editor window (similar to MWCS).
 
 ### Editor Interface
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  EAIS AI Editor                    [Dropdown] [Load] [New]      │
-├─────────────────────────────────────────────────────────────────┤
-│  Profile Name: [____________]                           [Save]  │
-├─────────────────────────────────────────────────────────────────┤
-│                                           │                     │
-│  JSON Editor            [Format][Validate]│  States             │
-│  ┌────────────────────────────────────┐   │  ┌───────────────┐  │
-│  │{                                   │   │  │ • Idle        │  │
-│  │  "name": "MyAI",                   │   │  │ • ChaseBall   │  │
-│  │  "states": {                       │   │  │ • Shoot       │  │
-│  │    "Idle": { ... }                 │   │  └───────────────┘  │
-│  │  }                                 │   │                     │
-│  │}                                   │   │  Inspector          │
-│  └────────────────────────────────────┘   │  ┌───────────────┐  │
-│                                           │  │ [Properties]  │  │
-│                                           │  └───────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│  Ready                          ✓ Valid         [Test Spawn AI] │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│  EAIS — Enhanced AI System                      │
+├─────────────────────────────────────────────────┤
+│ [Load Profile] [Save Profile] [Validate] [Format]│
+│ [List Profiles] [Generate/Repair Editor EUW]     │
+├─────────────────────────────────────────────────┤
+│  EAIS Tool ready.                                │
+│  > [Log output appears here]                     │
+│                                                  │
+└─────────────────────────────────────────────────┘
 ```
 
 ### Editor Features
 
 | Feature | Button | Description |
 |---------|--------|-------------|
-| **New** | `New` | Create a new profile from template |
-| **Load** | `Load` | Load selected profile from dropdown |
-| **Save** | `Save` | Save current profile to file |
+| **List Profiles** | `List Profiles` | Show all available AI profiles |
+| **Load** | `Load Profile` | Load a profile (enter name in console) |
+| **Save** | `Save Profile` | Save current profile to file |
 | **Validate** | `Validate` | Check JSON for errors |
 | **Format** | `Format` | Auto-format/prettify JSON |
-| **Test Spawn** | `Test Spawn AI` | Spawn AI with current profile in-game |
+| **Generate EUW** | `Generate/Repair Editor EUW` | Generate Editor Utility Widget via P_MWCS |
 
 ### Step-by-Step: Creating an AI Profile in the Editor
 
 #### Step 1: Open the Editor
 ```
-Window → Developer Tools → EAIS AI Editor
+Tools → EAIS → EAIS AI Editor
 ```
 
 #### Step 2: Create New Profile
@@ -708,13 +696,19 @@ Click **Test Spawn AI** to spawn an AI character using your profile.
 
 ### Regenerating the Editor Widget
 
-If you need to regenerate the Editor UI:
+To regenerate or repair the Editor Utility Widget:
 
+**Option 1: From EAIS Tool**
+```
+Tools → EAIS → EAIS AI Editor → Click "Generate/Repair Editor EUW"
+```
+
+**Option 2: Run MWCS commandlet**
 ```powershell
 .\DevTools\scripts\generate_Editor.bat
 ```
 
-This runs P_MWCS to create `EUW_EAIS_AIEditor` from the widget spec.
+This runs P_MWCS to create the Editor Utility Widget at `Content/Editor/EAIS/EUW_EAIS_AIEditor`.
 
 ---
 
