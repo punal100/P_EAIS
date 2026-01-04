@@ -97,7 +97,7 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
          UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: TargetLocation is ZERO! Target param was: '%s'"), *Params.Target);
     }
 
-    EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, false, true);
+    EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, true, true);
     UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: MoveToLocation Result: %d (0=Failed, 1=AlreadyAtGoal, 2=RequestSuccessful)"), (int32)Result);
 
     PathFollowingComp = AIController->GetPathFollowingComponent();
