@@ -81,32 +81,38 @@ bool UAIComponent::InitializeAI(UAIBehaviour* Behavior)
         return false;
     }
 
+    UE_LOG(LogTemp, Warning, TEXT("UAIComponent: InitializeAI called for %s"), *Behavior->GetName());
     AIBehaviour = Behavior;
 
     FString Error;
     if (!Behavior->ParseBehavior(Error))
     {
-        UE_LOG(LogTemp, Warning, TEXT("UAIComponent: Failed to parse behavior: %s"), *Error);
+        UE_LOG(LogTemp, Error, TEXT("UAIComponent: Failed to parse behavior: %s"), *Error);
         return false;
     }
 
     if (!Interpreter.LoadFromDef(Behavior->GetBehaviorDef()))
     {
+        UE_LOG(LogTemp, Error, TEXT("UAIComponent: Failed to load interpreter definition"));
         return false;
     }
 
     Interpreter.Initialize(this);
+    UE_LOG(LogTemp, Warning, TEXT("UAIComponent: AI initialized successfully."));
     return true;
 }
 
 bool UAIComponent::InitializeAIFromJson(const FString& JsonString, FString& OutError)
 {
+    UE_LOG(LogTemp, Warning, TEXT("UAIComponent: InitializeAIFromJson called. Length: %d"), JsonString.Len());
     if (!Interpreter.LoadFromJson(JsonString, OutError))
     {
+        UE_LOG(LogTemp, Error, TEXT("UAIComponent: Failed to load from JSON: %s"), *OutError);
         return false;
     }
 
     Interpreter.Initialize(this);
+    UE_LOG(LogTemp, Warning, TEXT("UAIComponent: AI initialized from JSON successfully."));
     return true;
 }
 
@@ -114,16 +120,14 @@ void UAIComponent::StartAI()
 {
     if (!Interpreter.IsValid())
     {
+        UE_LOG(LogTemp, Warning, TEXT("UAIComponent: StartAI called but interpreter invalid. Resetting."));
         Interpreter.Reset();
     }
 
     bIsRunning = true;
     Interpreter.SetPaused(false);
 
-    if (bDebugMode)
-    {
-        UE_LOG(LogTemp, Log, TEXT("UAIComponent: AI Started - %s"), *GetBehaviorName());
-    }
+    UE_LOG(LogTemp, Warning, TEXT("UAIComponent: AI Started - %s (State: %s)"), *GetBehaviorName(), *GetCurrentState());
 }
 
 void UAIComponent::StopAI()

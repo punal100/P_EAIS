@@ -1,7 +1,12 @@
 /*
  * @Author: Punal Manalan
- * @Description: EAIS AI Editor - Visual editor widget for creating and editing AI behaviors
+ * @Description: EAIS AI Editor - Launcher widget for AI Graph Editor
  * @Date: 01/01/2026
+ * 
+ * ARCHITECTURE:
+ * - This EUW is a LAUNCHER only
+ * - Uses only P_MWCS-supported widgets (Button, TextBlock, ComboBoxString)
+ * - Opens the real SGraphEditor-based AI Graph Editor via dockable tab
  */
 
 #pragma once
@@ -12,22 +17,19 @@
 
 class UButton;
 class UTextBlock;
-class UListView;
-class UScrollBox;
-class UEditableTextBox;
-class UMultiLineEditableTextBox;
 class UComboBoxString;
-class UBorder;
 
 /**
- * EAIS AI Editor Widget
- * A visual editor for creating, editing, validating, and testing AI behavior JSON profiles.
+ * EAIS AI Editor Launcher Widget
+ * 
+ * A simple launcher for the AI Graph Editor.
+ * The actual AI behavior editing happens in the SGraphEditor-based tab.
  * 
  * Features:
- * - Load/Save JSON files from Content/AIProfiles
- * - Validate JSON against schema
- * - Edit AI states, transitions, and actions
- * - Preview AI behavior on selected character
+ * - Profile selection dropdown
+ * - Open Graph Editor button (launches SEAIS_GraphEditor tab)
+ * - List/Load/Validate profiles
+ * - Export runtime JSON
  */
 UCLASS()
 class P_EAISTOOLS_API UEAIS_AIEditor : public UEditorUtilityWidget
@@ -41,47 +43,37 @@ public:
     UPROPERTY(meta = (BindWidget))
     UComboBoxString* ProfileDropdown;
 
-    /** Profile name input */
-    UPROPERTY(meta = (BindWidget))
-    UEditableTextBox* ProfileNameInput;
-
-    /** JSON Editor text area */
-    UPROPERTY(meta = (BindWidget))
-    UMultiLineEditableTextBox* JsonEditor;
-
     /** Status text display */
     UPROPERTY(meta = (BindWidget))
     UTextBlock* StatusText;
 
-    /** Validation result text */
+    /** Current profile name display */
     UPROPERTY(meta = (BindWidget))
-    UTextBlock* ValidationText;
-
-    /** States list container */
-    UPROPERTY(meta = (BindWidget))
-    UScrollBox* StatesPanel;
-
-    /** Inspector panel container */
-    UPROPERTY(meta = (BindWidget))
-    UScrollBox* InspectorPanel;
+    UTextBlock* ProfileNameText;
 
     // ==================== Buttons ====================
 
+    /** Open the graph editor tab */
     UPROPERTY(meta = (BindWidget))
-    UButton* Btn_New;
+    UButton* Btn_OpenGraphEditor;
 
+    /** List available profiles */
+    UPROPERTY(meta = (BindWidget))
+    UButton* Btn_ListProfiles;
+
+    /** Load selected profile */
     UPROPERTY(meta = (BindWidget))
     UButton* Btn_Load;
 
-    UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Save;
-
+    /** Validate selected profile */
     UPROPERTY(meta = (BindWidget))
     UButton* Btn_Validate;
 
+    /** Export runtime JSON */
     UPROPERTY(meta = (BindWidget))
-    UButton* Btn_Format;
+    UButton* Btn_ExportRuntime;
 
+    /** Spawn test AI */
     UPROPERTY(meta = (BindWidget))
     UButton* Btn_TestSpawn;
 
@@ -101,19 +93,19 @@ protected:
     // ==================== Button Handlers ====================
 
     UFUNCTION()
-    void OnNewClicked();
+    void OnOpenGraphEditorClicked();
+
+    UFUNCTION()
+    void OnListProfilesClicked();
 
     UFUNCTION()
     void OnLoadClicked();
 
     UFUNCTION()
-    void OnSaveClicked();
-
-    UFUNCTION()
     void OnValidateClicked();
 
     UFUNCTION()
-    void OnFormatClicked();
+    void OnExportRuntimeClicked();
 
     UFUNCTION()
     void OnTestSpawnClicked();
@@ -126,37 +118,19 @@ protected:
     /** Refresh the profiles dropdown */
     void RefreshProfileList();
 
-    /** Load a profile by name */
-    bool LoadProfile(const FString& ProfileName);
+    /** Get the profiles directory path */
+    FString GetProfilesDirectory() const;
 
-    /** Save current profile */
-    bool SaveCurrentProfile();
-
-    /** Validate the current JSON */
-    bool ValidateJson(FString& OutErrorMessage);
-
-    /** Format/prettify the JSON */
-    void FormatJson();
+    /** Get the editor profiles directory path */
+    FString GetEditorProfilesDirectory() const;
 
     /** Update status text */
     void SetStatus(const FString& Message, bool bIsError = false);
 
-    /** Update validation display */
-    void SetValidationResult(const FString& Message, bool bIsValid);
-
-    /** Spawn AI for testing */
-    void SpawnTestAI();
-
-    /** Get the profiles directory path */
-    FString GetProfilesDirectory() const;
-
-    /** Parse states from JSON and populate panel */
-    void ParseAndDisplayStates();
+    /** Validate a profile JSON file */
+    bool ValidateProfileFile(const FString& FilePath, FString& OutErrorMessage);
 
 private:
-    /** Currently loaded profile name */
-    FString CurrentProfileName;
-
-    /** Is the current profile modified */
-    bool bIsModified;
+    /** Currently selected profile name */
+    FString SelectedProfileName;
 };

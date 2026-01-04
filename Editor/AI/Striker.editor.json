@@ -1,0 +1,214 @@
+{
+    "schemaVersion": 1,
+    "name": "Striker",
+    "initialState": "Idle",
+    "states": [
+        {
+            "id": "Idle",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Entering Idle\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "ChaseBall",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ChaseBall",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Chasing Ball\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"ball\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Attack",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "Attack",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Attacking\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"opponentGoal\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Shoot",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Distance",
+                        "keyOrName": "opponentGoal",
+                        "op": "LessThan",
+                        "compareValue": {
+                            "type": "Float",
+                            "rawValue": "500.0"
+                        },
+                        "target": "opponentGoal"
+                    }
+                },
+                {
+                    "to": "ChaseBall",
+                    "priority": 50,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "Shoot",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Shooting\" }"
+                },
+                {
+                    "actionName": "InjectInput",
+                    "paramsJson": "{ \"actionName\": \"IA_Kick\", \"phase\": \"Started\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Idle",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "keyOrName": "",
+                        "op": "GreaterThan",
+                        "compareValue": {
+                            "type": "Float",
+                            "rawValue": "0.0"
+                        },
+                        "seconds": 0.5
+                    }
+                }
+            ]
+        }
+    ],
+    "editor": {
+        "nodes": {
+            "Idle": {
+                "pos": {
+                    "x": 100.0,
+                    "y": 100.0
+                },
+                "color": "#3A3A3A",
+                "comment": "Entry state"
+            },
+            "ChaseBall": {
+                "pos": {
+                    "x": 420.0,
+                    "y": 100.0
+                },
+                "color": "#3A3A3A",
+                "comment": "Move towards ball"
+            },
+            "Attack": {
+                "pos": {
+                    "x": 740.0,
+                    "y": 100.0
+                },
+                "color": "#3A3A3A",
+                "comment": "Move towards goal"
+            },
+            "Shoot": {
+                "pos": {
+                    "x": 1060.0,
+                    "y": 100.0
+                },
+                "color": "#4A6A4A",
+                "comment": "Kick the ball"
+            }
+        },
+        "edges": [
+            {
+                "from": "Idle",
+                "to": "ChaseBall",
+                "comment": "No ball possession"
+            },
+            {
+                "from": "ChaseBall",
+                "to": "Attack",
+                "comment": "Got ball"
+            },
+            {
+                "from": "Attack",
+                "to": "Shoot",
+                "comment": "Near goal"
+            },
+            {
+                "from": "Attack",
+                "to": "ChaseBall",
+                "comment": "Lost ball"
+            },
+            {
+                "from": "Shoot",
+                "to": "Idle",
+                "comment": "After kick delay"
+            }
+        ],
+        "viewport": {
+            "zoom": 1.0,
+            "pan": {
+                "x": 0.0,
+                "y": 0.0
+            }
+        }
+    }
+}

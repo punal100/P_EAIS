@@ -133,8 +133,9 @@ void UEAISConsoleCommands::SpawnBotHandler(const TArray<FString>& Args)
         return;
     }
 
-    // TODO: Spawn actual pawn using P_MiniFootball spawning system
-    UE_LOG(LogTemp, Log, TEXT("EAIS.SpawnBot: Loaded behavior '%s' successfully. Pawn spawning requires P_MiniFootball integration."), *ProfileName);
+    // TODO: Spawn actual pawn using game-specific spawning system
+    // Your game module should implement pawn spawning and attach UAIComponent
+    UE_LOG(LogTemp, Log, TEXT("EAIS.SpawnBot: Loaded behavior '%s' successfully. Implement game-specific pawn spawning."), *ProfileName);
 }
 
 void UEAISConsoleCommands::SetDebugHandler(const TArray<FString>& Args)

@@ -55,12 +55,24 @@ $ErrorActionPreference = "Stop"
 # Configuration
 # ============================================================================
 
-$ProjectRoot = "D:\Projects\UE\A_MiniFootball"
-$UEEngineRoot = "D:\UE\UE_S"
-$UProjectPath = "$ProjectRoot\A_MiniFootball.uproject"
+# Determine paths relative to script location
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$PEAISRoot = Split-Path -Parent $ScriptDir
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PEAISRoot)
+
+# Find .uproject file in project root
+$UProjectFile = Get-ChildItem -Path $ProjectRoot -Filter "*.uproject" -File | Select-Object -First 1
+if (-not $UProjectFile) {
+    Write-Error "No .uproject file found in $ProjectRoot"
+    exit 1
+}
+$UProjectPath = $UProjectFile.FullName
+$ProjectName = [System.IO.Path]::GetFileNameWithoutExtension($UProjectFile.Name)
+
+# UE Engine path (can be overridden via environment variable)
+$UEEngineRoot = if ($env:UE_ENGINE_ROOT) { $env:UE_ENGINE_ROOT } else { "D:\UE\UE_S" }
 
 # P_EAIS paths
-$PEAISRoot = "$ProjectRoot\Plugins\P_EAIS"
 $PEAISSource = "$PEAISRoot\Source"
 $AIProfilesDir = "$ProjectRoot\Content\AIProfiles"
 $AISchemaPath = "$PEAISRoot\Docs\ai-schema.json"
@@ -132,11 +144,14 @@ function Show-LogAnalysis {
             $RelevantLines | Select-Object -First 50 | ForEach-Object {
                 if ($_ -match "Error|FAILED") {
                     Write-Host $_ -ForegroundColor Red
-                } elseif ($_ -match "Warning") {
+                }
+                elseif ($_ -match "Warning") {
                     Write-Host $_ -ForegroundColor Yellow
-                } elseif ($_ -match "PASSED|Success|OK") {
+                }
+                elseif ($_ -match "PASSED|Success|OK") {
                     Write-Host $_ -ForegroundColor Green
-                } else {
+                }
+                else {
                     Write-Host $_ -ForegroundColor White
                 }
             }
@@ -149,12 +164,12 @@ function Test-JsonProfile {
     param([string]$JsonPath, [string]$SchemaPath)
     
     $Result = @{
-        Path = $JsonPath
-        Name = [System.IO.Path]::GetFileNameWithoutExtension($JsonPath)
-        Valid = $false
-        Errors = @()
-        Warnings = @()
-        StateCount = 0
+        Path        = $JsonPath
+        Name        = [System.IO.Path]::GetFileNameWithoutExtension($JsonPath)
+        Valid       = $false
+        Errors      = @()
+        Warnings    = @()
+        StateCount  = 0
         ActionCount = 0
     }
     
@@ -164,7 +179,8 @@ function Test-JsonProfile {
         
         if (-not $Json.name -and -not $Json.Name) {
             $Result.Errors += "Missing name field"
-        } else {
+        }
+        else {
             $Result.Name = if ($Json.name) { $Json.name } else { $Json.Name }
         }
         
@@ -174,10 +190,12 @@ function Test-JsonProfile {
         
         if (-not $States) {
             $Result.Errors += "Missing states field"
-        } else {
+        }
+        else {
             if ($States -is [array]) {
                 $Result.StateCount = $States.Count
-            } else {
+            }
+            else {
                 $Result.StateCount = ($States | Get-Member -MemberType NoteProperty).Count
             }
             if ($Result.StateCount -eq 0) {
@@ -189,7 +207,8 @@ function Test-JsonProfile {
         $Result.ActionCount = $ActionMatches.Count
         
         $Result.Valid = ($Result.Errors.Count -eq 0)
-    } catch {
+    }
+    catch {
         $Result.Errors += "JSON Parse Error: $($_.Exception.Message)"
     }
     
@@ -245,27 +264,30 @@ if (-not $TestOnly -and -not $ValidateOnly -and -not $SkipBuild) {
         exit 1
     }
 
-    Write-Info "Building A_MiniFootballEditor Win64 Development..."
+    Write-Info "Building ${ProjectName}Editor Win64 Development..."
     Write-Detail "This may take several minutes..."
 
     $BuildLogPath = "$OutputDir\build_output.txt"
     
     $BuildProcess = Start-Process -FilePath $UEEngineBuildBatch -ArgumentList @(
-        "A_MiniFootballEditor", "Win64", "Development",
+        "${ProjectName}Editor", "Win64", "Development",
         "-Project=`"$UProjectPath`"", "-WaitMutex", "-FromMsBuild"
     ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $BuildLogPath
 
     if ($BuildProcess.ExitCode -eq 0) {
         Write-Success "Project built successfully"
-    } else {
+    }
+    else {
         Write-ErrorMsg "Project build failed! Exit code: $($BuildProcess.ExitCode)"
         Show-LogAnalysis -LogPath $BuildLogPath -FilterPattern "error|warning|failed"
         $TotalErrors++
         exit 1
     }
-} elseif ($SkipBuild) {
+}
+elseif ($SkipBuild) {
     Write-Info "Skipping build step (-SkipBuild)"
-} else {
+}
+else {
     Write-Info "Skipping build step (TestOnly/ValidateOnly mode)"
 }
 
@@ -280,7 +302,8 @@ if (-not $TestOnly) {
     
     if ($Profiles.Count -eq 0) {
         Write-WarningMsg "No AI profiles found in $AIProfilesDir"
-    } else {
+    }
+    else {
         Write-Info "Found $($Profiles.Count) profile(s) to validate"
         Write-Host ""
         
@@ -296,7 +319,8 @@ if (-not $TestOnly) {
                 Write-Host "  [PASS] " -ForegroundColor Green -NoNewline
                 Write-Host "$RelPath" -ForegroundColor White -NoNewline
                 Write-Host " (States: $($Result.StateCount), Actions: $($Result.ActionCount))" -ForegroundColor Gray
-            } else {
+            }
+            else {
                 Write-Host "  [FAIL] " -ForegroundColor Red -NoNewline
                 Write-Host "$RelPath" -ForegroundColor White
                 foreach ($Err in $Result.Errors) {
@@ -360,10 +384,12 @@ if (-not $ValidateOnly -and $RunTests) {
         if ($FailedTests -gt 0) {
             Write-ErrorMsg "$FailedTests test(s) failed!"
             $TotalErrors += $FailedTests
-        } else {
+        }
+        else {
             Write-Success "All tests passed!"
         }
-    } else {
+    }
+    else {
         Write-WarningMsg "No test results found. Tests may not have run properly."
         if ($VerboseOutput -and (Test-Path $TestLogPath)) {
             Write-Host ""
@@ -371,7 +397,8 @@ if (-not $ValidateOnly -and $RunTests) {
             Get-Content $TestLogPath -Tail 20 | ForEach-Object { Write-Host $_ -ForegroundColor Gray }
         }
     }
-} elseif (-not $ValidateOnly -and -not $RunTests) {
+}
+elseif (-not $ValidateOnly -and -not $RunTests) {
     Write-Header "Step 3: Automation Tests"
     Write-Info "Skipping automation tests (use -RunTests to enable)"
 }
@@ -396,7 +423,8 @@ foreach ($File in $SourceFiles) {
 
 if ($TodoCount -gt 0) {
     Write-WarningMsg "Found $TodoCount TODO comments in source"
-} else {
+}
+else {
     Write-Success "No TODO comments found"
 }
 
@@ -425,7 +453,8 @@ $MissingFiles = @()
 foreach ($Required in $RequiredFiles) {
     if (Test-Path $Required) {
         Write-Detail "[EXISTS] $($Required.Replace($PEAISRoot, ''))"
-    } else {
+    }
+    else {
         $MissingFiles += $Required.Replace($PEAISRoot, "")
         $TotalErrors++
     }
@@ -433,7 +462,8 @@ foreach ($Required in $RequiredFiles) {
 
 if ($MissingFiles.Count -eq 0) {
     Write-Success "All required files present ($($RequiredFiles.Count) files)"
-} else {
+}
+else {
     Write-ErrorMsg "Missing $($MissingFiles.Count) required file(s):"
     foreach ($Missing in $MissingFiles) {
         Write-Host "  - $Missing" -ForegroundColor Red
@@ -459,7 +489,8 @@ $DevToolsMissing = @()
 foreach ($DevTool in $DevToolsFiles) {
     if (Test-Path $DevTool) {
         Write-Detail "[EXISTS] $([System.IO.Path]::GetFileName($DevTool))"
-    } else {
+    }
+    else {
         $DevToolsMissing += [System.IO.Path]::GetFileName($DevTool)
         $TotalWarnings++
     }
@@ -467,7 +498,8 @@ foreach ($DevTool in $DevToolsFiles) {
 
 if ($DevToolsMissing.Count -eq 0) {
     Write-Success "All DevTools present ($($DevToolsFiles.Count) files)"
-} else {
+}
+else {
     Write-WarningMsg "Missing $($DevToolsMissing.Count) DevTools file(s):"
     foreach ($Missing in $DevToolsMissing) {
         Write-Host "  - $Missing" -ForegroundColor Yellow
@@ -489,9 +521,11 @@ Write-Host ""
 
 if ($TotalErrors -eq 0 -and $TotalWarnings -eq 0) {
     Write-Host "  [PASS] All checks PASSED!" -ForegroundColor Green
-} elseif ($TotalErrors -eq 0) {
+}
+elseif ($TotalErrors -eq 0) {
     Write-Host "  [WARN] Passed with $TotalWarnings warning(s)" -ForegroundColor Yellow
-} else {
+}
+else {
     Write-Host "  [FAIL] $TotalErrors error(s), $TotalWarnings warning(s)" -ForegroundColor Red
 }
 
@@ -524,6 +558,7 @@ if ($VerboseOutput) {
 # Exit with appropriate code
 if ($TotalErrors -gt 0) {
     exit 1
-} else {
+}
+else {
     exit 0
 }

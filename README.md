@@ -1,276 +1,233 @@
 # P_EAIS - Enhanced AI System
 
-**P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime**, a **Visual AI Editor**, and deep integration with **P_MEIS** (Input) and **P_MWCS** (UI).
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+[![UE Version](https://img.shields.io/badge/UE-5.x-blue)]()
+[![Status](https://img.shields.io/badge/status-Work%20In%20Progress-yellow)]()
 
-It brings the "Old RPG" style of transparent, state-machine driven AI to modern Unreal Engine projects, with a focus on fairness (AI uses the same Input API as players via P_MEIS injection).
+> [!WARNING]
+> **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
+
+**P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime** and a **Visual AI Editor**.
+
+It implements a **Deterministic, Server-Authoritative Hybrid FSM/BT Runtime**, ensuring AI behavior is transparent, predictable, and replay-safe.
 
 ## 🌟 Key Features
 
-- **JSON-First Architecture:** Define AI brains in human-readable JSON files. No Blueprint spaghetti required.
-- **State Machine Runtime:** Hierarchical states with transitions, conditions, and actions.
-- **Blackboard System:** Per-instance key-value storage for AI memory.
-- **Input Injection:** AI agents "press buttons" via `P_MEIS` Injection, ensuring they play by the same rules as humans.
-- **Visual AI Editor:** Editor Utility Widget for creating, editing, validating, and testing AI behaviors.
-- **Headless Automation:** Includes scripts for headless building, testing, and CI integration.
-- **MiniFootball Ready:** Comes with `Striker`, `Defender`, and `Goalkeeper` AI profiles.
+- **JSON-First Architecture:** Define AI behaviors in human-readable JSON files
+- **Hybrid FSM/BT Runtime:** State machine with Behavior Tree-like patterns
+- **Typed Blackboard System:** Per-instance key-value storage with Bool, Int, Float, String, Vector support
+- **Input Injection:** AI agents can inject input via P_MEIS (optional dependency)
+- **Visual AI Editor:** SGraphEditor-based node editor for creating AI behaviors
+- **Headless Automation:** Full CI/CD support with validation scripts
+- **Game-Agnostic:** Works with any project via the `IEAIS_TargetProvider` interface
 
-## 📦 Architecture
+## 📦 Module Structure
 
 ```
-P_MEIS (Input) -> P_EAIS (Decision / JSON interpreter) -> Pawn/Controller -> P_MiniFootball Gameplay
-                                 ^
-                                 |
-                            AI Editor (UMG) ---- P_MWCS (Widget creation)
+P_EAIS/
+├── Source/
+│   ├── P_EAIS/               # Runtime module
+│   ├── P_EAIS_Editor/        # Editor module (visual editor)
+│   └── P_EAISTools/          # Editor tools (EUW, commandlets)
+├── Content/AIProfiles/       # Runtime JSON profiles (*.runtime.json)
+├── Editor/AI/                # Editor JSON (*.editor.json)
+├── Scripts/                  # Validation scripts
+└── Docs/                     # Documentation
+```
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    P_EAIS Architecture                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  JSON Profile (.runtime.json)                                │
+│       │                                                      │
+│       ▼                                                      │
+│  UAIBehaviour (UObject) ──► FAIInterpreter (State Machine)  │
+│       │                           │                          │
+│       ▼                           ▼                          │
+│  UAIComponent ◄──────────── Tick / Execute Actions           │
+│       │                           │                          │
+│       ▼                           ▼                          │
+│  IEAIS_TargetProvider ──► Input Injection (optional)        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ## 🚀 Quick Start
 
-### 1. Enable Plugins
+### 1. Enable Plugin
 
-Ensure `P_EAIS`, `P_MEIS`, and `P_MWCS` are enabled in your project:
-- Edit → Plugins → Search "EAIS"
+Add P_EAIS to your project's `.uproject` file or enable via Edit → Plugins.
 
-### 2. Spawn AI
-
-```cpp
-// Console Command
-EAIS.SpawnBot <TeamID> <ProfileName>
-
-// Example: Spawn a Striker on Team 1
-EAIS.SpawnBot 1 Striker
-```
-
-### 3. Add AI to Existing Pawn
+### 2. Add AI to a Pawn
 
 ```cpp
 // In your Pawn or Controller
 UAIComponent* AIComp = NewObject<UAIComponent>(this);
 AIComp->RegisterComponent();
-AIComp->JsonFilePath = TEXT("Striker.json");
+AIComp->JsonFilePath = TEXT("MyProfile.runtime.json");
 AIComp->bAutoStart = true;
 ```
 
-### 4. Open the Visual AI Editor
+### 3. Create an AI Profile
 
-```cpp
-// Option 1: From Menu
-Window → Developer Tools → EAIS AI Editor
+Create `Content/AIProfiles/MyProfile.runtime.json`:
 
-// Option 2: Run directly
-Run EUW_EAIS_AIEditor from Content/UI/Widgets/
+```json
+{
+  "name": "MyProfile",
+  "initialState": "Idle",
+  "blackboard": [
+    { "key": "IsActive", "value": { "type": "Bool", "rawValue": "false" } }
+  ],
+  "states": [
+    {
+      "id": "Idle",
+      "terminal": false,
+      "onEnter": [],
+      "onTick": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Idle\" }" }
+      ],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Active",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "IsActive",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Active",
+      "terminal": false,
+      "onEnter": [],
+      "onTick": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Active\" }" }
+      ],
+      "onExit": [],
+      "transitions": []
+    }
+  ]
+}
 ```
 
-### 5. Create AI Profiles (JSON)
-
-Create JSON files in `Content/AIProfiles/`. See [GUIDE.md](GUIDE.md) for step-by-step authoring instructions.
-
-## 📂 Folder Structure
+### 4. Open the Visual Editor
 
 ```
-P_EAIS/
-├── Source/
-│   ├── P_EAIS/                  # Runtime module
-│   │   ├── Public/              # Headers (EAIS_Types, AIBehaviour, AIInterpreter, etc.)
-│   │   └── Private/             # Implementations
-│   └── P_EAISTools/             # Editor module (AI Editor)
-├── Content/                     # Generated widgets appear in project Content/UI/Widgets/
-├── DevTools/
-│   ├── scripts/                 # build_headless.sh/.bat, run_tests.sh/.bat
-│   └── ci/                      # GitHub Actions workflow
-├── Docs/
-│   ├── README.md
-│   └── GUIDE.md
-├── Config/
-│   └── DefaultEAIS.ini          # Plugin configuration
-└── P_EAIS.uplugin
+Tools → EAIS → EAIS AI Editor
 ```
 
-**Project-Level AI Profiles:** `Content/AIProfiles/`
-- `Striker.json` - Offensive AI
-- `Defender.json` - Defensive AI  
-- `Goalkeeper.json` - Goal protection AI
-- `Tests/` - Automation test profiles
+## 📐 JSON Schema
 
-### MiniFootball AI Character Integration
+### States Array Format
 
-In `P_MiniFootball`, all match characters are `AMF_AICharacter` instances:
+```json
+{
+  "id": "StateId",
+  "terminal": false,
+  "onEnter": [ /* actions */ ],
+  "onTick": [ /* actions */ ],
+  "onExit": [ /* actions */ ],
+  "transitions": [ /* transitions */ ]
+}
+```
 
-- **Match Start**: All characters are AI-controlled
-- **Human Joins**: AI stops for that character → Human takes control
-- **Human Switches (Q)**: Previous character resumes AI automatically
-- **Human Leaves**: Character immediately resumes AI
+### Action Format
 
-This is achieved via `PossessedBy()` / `UnPossessed()` overrides that stop/start AI based on controller type.
+```json
+{
+  "actionName": "ActionName",
+  "paramsJson": "{ \"param\": \"value\" }"
+}
+```
 
-See [P_MiniFootball README](../P_MiniFootball/README.md) for full details.
+### Transition Format
+
+```json
+{
+  "to": "TargetStateId",
+  "priority": 100,
+  "condition": {
+    "type": "Blackboard|Event|Timer|Distance",
+    "keyOrName": "KeyName",
+    "op": "Equal|NotEqual|GreaterThan|LessThan",
+    "compareValue": { "type": "Bool|Int|Float|String", "rawValue": "value" }
+  }
+}
+```
 
 ## 🎨 Visual AI Editor
 
-The Visual AI Editor provides a graphical interface for creating and managing AI behaviors.
+The Visual AI Editor provides a node-based interface using Unreal's SGraphEditor.
 
-### Features
+| Class | Description |
+|-------|-------------|
+| `UEAIS_GraphNode` | State node in graph |
+| `UEAIS_GraphSchema` | Connection rules |
+| `SEAIS_GraphEditor` | Main editor widget |
+| `FEAISJsonEditorParser` | JSON parsing |
 
-| Feature | Description |
-|---------|-------------|
-| **Load/Save** | Load existing profiles, save new ones |
-| **Validate** | Check JSON against schema for errors |
-| **Format** | Auto-format/prettify JSON |
-| **List Profiles** | Show all available AI profiles |
-| **Generate/Repair EUW** | Generate Editor Utility Widget via P_MWCS |
-
-### Opening the Editor
-
-**From Menu:** Tools → EAIS → EAIS AI Editor
-
-### Architecture
-
-The EAIS Editor Tool uses a Slate-based editor window (like MWCS). It can optionally generate an Editor Utility Widget via P_MWCS for advanced editing features.
-
-```
-Tools Menu
-├── EAIS (Section)
-│   └── EAIS AI Editor → Opens FEAIS_ToolTab (Slate window)
-└── MWCS (Section)
-    └── MWCS → Opens FMWCS_ToolTab
-```
-
-### Editor Workflow
-
-1. **List Profiles:** Click to see available profiles
-4. **Save:** Enter a name and click "Save"
-5. **Test:** Click "Test Spawn AI" to see it in action
-
-## 🧪 Testing
-
-### In-Editor
-
-1. Open any MiniFootball map (e.g., `Maps/L_MiniFootball`)
-2. Spawn a bot: `EAIS.SpawnBot 1 Striker`
-3. Toggle Debug: `EAIS.Debug 1`
-4. Inject events: `EAIS.InjectEvent * BallSeen`
-
-### Console Commands
+## 🧪 Console Commands
 
 | Command | Description |
 |---------|-------------|
 | `EAIS.SpawnBot <Team> <Profile>` | Spawn AI bot |
 | `EAIS.Debug <0\|1>` | Toggle debug mode |
-| `EAIS.InjectEvent <AIName\|*> <Event>` | Inject event to AI |
+| `EAIS.InjectEvent <Name> <Event>` | Inject event |
 | `EAIS.ListActions` | List registered actions |
 
-### Headless (Automated)
+## ✅ Validation Scripts
 
 ```powershell
-# Windows
-.\DevTools\scripts\run_tests.bat
+# Full validation pipeline
+.\Scripts\TestEAIS.ps1 -VerboseOutput
 
-# Linux/macOS
-./DevTools/scripts/run_tests.sh
+# Individual scripts
+.\Scripts\ValidateAIJson.ps1
+.\Scripts\ValidateGraph.ps1
+.\Scripts\VerifyPlanConsistency.ps1
 ```
 
-## 🔧 Integration
+## 🔌 Game Integration
 
-### P_MEIS (Input)
+### Implementing IEAIS_TargetProvider
 
-P_EAIS does not call movement functions directly. Instead, it injects input via P_MEIS:
+Your game pawn should implement `IEAIS_TargetProvider` for target resolution:
 
 ```cpp
-// Instead of: Pawn->Jump();
-// AI does:
-UCPP_BPL_InputBinding::InjectActionTriggered(PC, FName(TEXT("Jump")));
-```
-
-This ensures AI uses the exact same input processing pipeline as players.
-
-### P_MWCS (UI)
-
-The **AI Editor** tool is generated by `P_MWCS` from a JSON specification defined in `EAIS_EditorWidgetSpec`:
-
-```
-EAIS_EditorWidgetSpec.GetWidgetSpec() → P_MWCS → Content/Editor/EAIS/EUW_EAIS_AIEditor.uasset
-```
-
-EAIS registers as an **External Tool EUW** in `Config/DefaultEditor.ini`:
-
-```ini
-+ExternalToolEuws=(ToolName="EAIS",OutputPath="/Game/Editor/EAIS",AssetName="EUW_EAIS_AIEditor",SpecProviderClass="/Script/P_EAISTools.EAIS_EditorWidgetSpec")
-```
-
-This modular approach allows EAIS to integrate with MWCS without MWCS needing any knowledge of EAIS.
-
-To generate or repair the Editor Utility Widget:
-
-**Option 1: Use the EAIS Tool**
-```
-Tools → EAIS → EAIS AI Editor → Click "Generate/Repair Editor EUW"
-```
-
-**Option 2: Run MWCS commandlet**
-```powershell
-.\DevTools\scripts\generate_Editor.bat
-```
-
-
-## 📐 JSON AI Schema
-
-AI behaviors are defined in JSON. See `Docs/ai-schema.json` for the full schema.
-
-### Example: Simple Striker
-
-```json
+class AMyCharacter : public ACharacter, public IEAIS_TargetProvider
 {
-  "name": "Striker",
-  "blackboard": {
-    "HasBall": false,
-    "TargetGoal": "Goal_B"
-  },
-  "states": {
-    "Idle": {
-      "OnEnter": [{ "Action": "LookAround" }],
-      "Transitions": [
-        { "Target": "ChaseBall", "Condition": "CanSeeBall" }
-      ]
-    },
-    "ChaseBall": {
-      "OnTick": [{ "Action": "MoveTo", "Params": { "Target": "ball" } }],
-      "Transitions": [
-        { "Target": "Shoot", "Condition": { "type": "Blackboard", "key": "HasBall", "op": "==", "value": true } }
-      ]
-    },
-    "Shoot": {
-      "OnEnter": [
-        { "Action": "AimAt", "Params": { "Target": "opponentGoal" } },
-        { "Action": "Kick", "Params": { "Power": 0.9 } }
-      ],
-      "Transitions": [
-        { "Target": "Idle", "Condition": { "type": "Timer", "seconds": 1.0 } }
-      ]
+    virtual FVector ResolveTargetLocation_Implementation(const FString& TargetName) const override
+    {
+        // Resolve game-specific targets
+        if (TargetName == "enemy") return GetNearestEnemy()->GetActorLocation();
+        return FVector::ZeroVector;
     }
-  }
-}
+};
 ```
 
 ## 🏗️ Built-in Actions
 
 | Action | Description | Parameters |
 |--------|-------------|------------|
-| `MoveTo` | Navigate to target | `Target`, `Speed` |
-| `Kick` | Kick the ball | `Power` (0-1) |
-| `AimAt` | Set look direction | `Target` |
-| `SetLookTarget` | Set focus target | `Target` |
-| `Wait` | Passive wait | `Power` (seconds) |
-| `SetBlackboardKey` | Set blackboard value | `Target` (key), `value` |
-| `InjectInput` | Inject P_MEIS input | `Target` (action name) |
-| `PassToTeammate` | Pass ball | `Power` |
-| `LookAround` | Clear focus | - |
+| `MoveTo` | Navigate to target | `target`, `speed` |
+| `Wait` | Passive wait | `seconds` |
+| `Log` | Debug logging | `message` |
+| `SetBlackboardKey` | Update blackboard | `key`, `value` |
 
-## 🔌 Extending P_EAIS
-
-### Custom Actions
+## 🔧 Custom Actions
 
 ```cpp
 UCLASS()
-class UMyCustomAction : public UAIAction
+class UMyAction : public UAIAction
 {
     GENERATED_BODY()
 public:
@@ -281,20 +238,28 @@ public:
     
     virtual FString GetActionName() const override { return TEXT("MyAction"); }
 };
-
-// Register in subsystem
-Subsystem->RegisterAction(TEXT("MyAction"), UMyCustomAction::StaticClass());
 ```
 
-## 🚦 CI Integration
+## 📚 Documentation
 
-See `DevTools/ci/eais_ci.yml` for a GitHub Actions example. Requires a self-hosted runner with Unreal Engine installed.
+| Document | Description |
+|----------|-------------|
+| [GUIDE.md](GUIDE.md) | Developer guide |
+| [Docs/Architecture.md](Docs/Architecture.md) | System architecture |
+| [Docs/JSONSchema.md](Docs/JSONSchema.md) | JSON schema reference |
+| [Docs/VisualEditor.md](Docs/VisualEditor.md) | Visual editor guide |
+
+## 🔗 Optional Dependencies
+
+| Plugin | Purpose |
+|--------|---------|
+| P_MEIS | Input injection (AI presses buttons) |
+| P_MWCS | Editor Utility Widget generation |
 
 ## 📄 License
 
-Part of the A_MiniFootball project by Punal Manalan.
+MIT License - Punal Manalan
 
-## 📚 Further Reading
+---
 
-- [GUIDE.md](GUIDE.md) - Detailed developer guide with step-by-step AI authoring
-- [Docs/ai-schema.json](Docs/ai-schema.json) - JSON Schema reference
+*A modular, game-agnostic AI system for Unreal Engine 5*

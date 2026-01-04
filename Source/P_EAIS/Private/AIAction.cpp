@@ -57,6 +57,26 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
             TargetLocation = FoundActors[0]->GetActorLocation();
         }
     }
+    // Check for "opponentGoal"
+    else if (Params.Target.Equals(TEXT("opponentGoal"), ESearchCase::IgnoreCase))
+    {
+        // Find goals
+        TArray<AActor*> FoundGoals;
+        UGameplayStatics::GetAllActorsWithTag(OwnerComponent->GetWorld(), FName(TEXT("Goal")), FoundGoals);
+        
+        // Determine opponent goal based on team
+        float TeamIDVal = OwnerComponent->GetBlackboardFloat(TEXT("TeamID"));
+        int32 MyTeam = FMath::RoundToInt(TeamIDVal); // 1=TeamA, 2=TeamB
+        
+        // Logic: Team A (1) Defends +Y, Attacks -Y
+        //        Team B (2) Defends -Y, Attacks +Y
+        
+        for (AActor* Goal : FoundGoals)
+        {
+            if (MyTeam == 1 && Goal->GetActorLocation().Y < 0) { TargetLocation = Goal->GetActorLocation(); break; }
+            if (MyTeam == 2 && Goal->GetActorLocation().Y > 0) { TargetLocation = Goal->GetActorLocation(); break; }
+        }
+    }
     else if (Params.Target.StartsWith(TEXT("(")))
     {
         // Parse vector string
@@ -70,7 +90,15 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
 
     // Move to target
     float AcceptanceRadius = 50.0f;
-    AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, false, true);
+    UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: Moving to %s (Cmd: %s)"), *TargetLocation.ToString(), *Params.Target);
+    
+    if (TargetLocation.IsZero())
+    {
+         UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: TargetLocation is ZERO! Target param was: '%s'"), *Params.Target);
+    }
+
+    EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, false, true);
+    UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: MoveToLocation Result: %d (0=Failed, 1=AlreadyAtGoal, 2=RequestSuccessful)"), (int32)Result);
 
     PathFollowingComp = AIController->GetPathFollowingComponent();
 }
@@ -84,31 +112,56 @@ void UAIAction_MoveTo::Abort_Implementation()
     SetRunning(false);
 }
 
+// ==================== Log ====================
+
+void UAIAction_Log::Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params)
+{
+    FString Message = Params.ExtraParams.FindRef(TEXT("message"));
+    if (Message.IsEmpty())
+    {
+        Message = Params.Target;
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("AI_LOG [%s]: %s"), *OwnerComponent->GetOwner()->GetName(), *Message);
+    Complete();
+}
+
+void UAIAction_Log::Abort_Implementation()
+{
+    SetRunning(false);
+}
+
 // ==================== Kick ====================
 
 void UAIAction_Kick::Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params)
 {
-    if (!OwnerComponent)
-    {
-        return;
-    }
-
+    if (!OwnerComponent || !OwnerComponent->GetOwnerPawn()) return;
     APawn* Pawn = OwnerComponent->GetOwnerPawn();
-    if (!Pawn)
+
+    FVector Direction = Pawn->GetActorForwardVector();
+    float Power = Params.Power;
+
+    // Use Reflection to call ExecuteShoot(FVector Direction, float Power)
+    UFunction* Function = Pawn->FindFunction(FName(TEXT("ExecuteShoot")));
+    if (Function)
     {
-        return;
+        struct FExecuteShootParams
+        {
+            FVector Direction;
+            float Power;
+        };
+        FExecuteShootParams FuncParams;
+        FuncParams.Direction = Direction;
+        FuncParams.Power = Power;
+
+        Pawn->ProcessEvent(Function, &FuncParams);
+        UE_LOG(LogTemp, Verbose, TEXT("UAIAction_Kick: Invoked ExecuteShoot via reflection"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UAIAction_Kick: Could not find 'ExecuteShoot' function on pawn %s"), *Pawn->GetName());
     }
 
-    AController* Controller = Pawn->GetController();
-    APlayerController* PC = Cast<APlayerController>(Controller);
-    
-    if (PC)
-    {
-        // Inject "Kick" action via P_MEIS
-        UCPP_BPL_InputBinding::InjectActionTriggered(PC, FName(TEXT("Kick")));
-    }
-
-    // Set power on blackboard for any listeners
     OwnerComponent->SetBlackboardFloat(TEXT("KickPower"), Params.Power);
 }
 

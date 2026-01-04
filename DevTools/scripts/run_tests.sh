@@ -9,12 +9,18 @@ set -euo pipefail
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$ROOT_DIR/../.." && pwd)"
 
 # Unreal Engine path (adjust to your environment)
 UE_ROOT="${UE_ROOT:-/opt/unreal}"
 
-# Project file path
-UPROJECT_PATH="$(cd "$ROOT_DIR/../.." && pwd)/A_MiniFootball.uproject"
+# Find .uproject file dynamically
+UPROJECT_PATH=$(find "$PROJECT_DIR" -maxdepth 1 -name "*.uproject" -type f | head -1)
+
+if [ -z "$UPROJECT_PATH" ]; then
+    echo "[EAIS] ERROR: No .uproject file found in $PROJECT_DIR"
+    exit 1
+fi
 
 echo "[EAIS] Running Automation Tests..."
 echo "[EAIS] UE Root: $UE_ROOT"

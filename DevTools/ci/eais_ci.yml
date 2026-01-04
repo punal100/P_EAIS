@@ -18,8 +18,7 @@ on:
   workflow_dispatch:
 
 env:
-  UE_VERSION: "5.2"
-  PROJECT_NAME: "A_MiniFootball"
+  UE_VERSION: "5.x"
 
 jobs:
   build-and-test:

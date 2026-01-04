@@ -14,6 +14,7 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
+#include "Widgets/Input/SComboBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/SBoxPanel.h"
@@ -42,6 +43,8 @@ public:
 
     void Construct(const FArguments& InArgs)
     {
+        RefreshProfileList();
+
         ChildSlot
         [
             SNew(SVerticalBox)
@@ -56,24 +59,79 @@ public:
                 .Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
             ]
             
-            // Buttons Row 1
+            // Profile Selection Row
             + SVerticalBox::Slot()
             .AutoHeight()
             .Padding(8)
             [
                 SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().Padding(2)
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(4)
+                [
+                    SNew(STextBlock)
+                    .Text(FText::FromString(TEXT("Profile:")))
+                ]
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                .Padding(4)
+                [
+                    SAssignNew(ProfileComboBox, SComboBox<TSharedPtr<FString>>)
+                    .OptionsSource(&ProfileOptions)
+                    .OnGenerateWidget(this, &SEAIS_ToolPanel::OnGenerateProfileComboItem)
+                    .OnSelectionChanged(this, &SEAIS_ToolPanel::OnProfileSelectionChanged)
+                    .Content()
+                    [
+                        SNew(STextBlock)
+                        .Text(this, &SEAIS_ToolPanel::GetSelectedProfileText)
+                    ]
+                ]
+                + SHorizontalBox::Slot()
+                .AutoWidth()
+                .Padding(4)
                 [
                     SNew(SButton)
-                    .Text(FText::FromString(TEXT("Load Profile")))
+                    .Text(FText::FromString(TEXT("Refresh")))
+                    .OnClicked(this, &SEAIS_ToolPanel::OnRefreshProfiles)
+                ]
+            ]
+
+            // Action Buttons Row 1
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(8)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(2)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Load Selected")))
+                    .HAlign(HAlign_Center)
                     .OnClicked(this, &SEAIS_ToolPanel::OnLoadProfile)
                 ]
-                + SHorizontalBox::Slot().AutoWidth().Padding(2)
+                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(2)
                 [
                     SNew(SButton)
-                    .Text(FText::FromString(TEXT("Save Profile")))
+                    .Text(FText::FromString(TEXT("Create New")))
+                    .HAlign(HAlign_Center)
+                    .OnClicked(this, &SEAIS_ToolPanel::OnCreateProfile)
+                ]
+                + SHorizontalBox::Slot().FillWidth(1.0f).Padding(2)
+                [
+                    SNew(SButton)
+                    .Text(FText::FromString(TEXT("Save")))
+                    .HAlign(HAlign_Center)
                     .OnClicked(this, &SEAIS_ToolPanel::OnSaveProfile)
                 ]
+            ]
+            
+            // Action Buttons Row 2
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(8)
+            [
+                SNew(SHorizontalBox)
                 + SHorizontalBox::Slot().AutoWidth().Padding(2)
                 [
                     SNew(SButton)
@@ -83,22 +141,8 @@ public:
                 + SHorizontalBox::Slot().AutoWidth().Padding(2)
                 [
                     SNew(SButton)
-                    .Text(FText::FromString(TEXT("Format")))
+                    .Text(FText::FromString(TEXT("Format JSON")))
                     .OnClicked(this, &SEAIS_ToolPanel::OnFormat)
-                ]
-            ]
-            
-            // Buttons Row 2
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(8)
-            [
-                SNew(SHorizontalBox)
-                + SHorizontalBox::Slot().AutoWidth().Padding(2)
-                [
-                    SNew(SButton)
-                    .Text(FText::FromString(TEXT("List Profiles")))
-                    .OnClicked(this, &SEAIS_ToolPanel::OnListProfiles)
                 ]
                 + SHorizontalBox::Slot().AutoWidth().Padding(2)
                 [
@@ -122,13 +166,17 @@ public:
             [
                 SAssignNew(LogBox, SMultiLineEditableTextBox)
                 .IsReadOnly(true)
-                .Text(FText::FromString(TEXT("EAIS Tool ready.")))
+                .Text(FText::FromString(TEXT("EAIS Tool ready. Select a profile or create new.")))
             ]
         ];
     }
 
 private:
     TSharedPtr<SMultiLineEditableTextBox> LogBox;
+    TSharedPtr<SComboBox<TSharedPtr<FString>>> ProfileComboBox;
+    TArray<TSharedPtr<FString>> ProfileOptions;
+    TSharedPtr<FString> SelectedProfile;
+    
     FString CurrentProfileName;
     FString CurrentProfileJson;
 
@@ -144,6 +192,8 @@ private:
             Existing += TEXT("\n");
         }
         Existing += Line;
+        
+        // Auto scroll to bottom (simple implementation)
         LogBox->SetText(FText::FromString(Existing));
     }
 
@@ -152,25 +202,87 @@ private:
         return FPaths::ProjectContentDir() / TEXT("AIProfiles");
     }
 
-    FReply OnListProfiles()
+    void RefreshProfileList()
     {
-        AppendLine(TEXT("--- Available Profiles ---"));
-        
+        ProfileOptions.Empty();
         FString ProfilesDir = GetProfilesDirectory();
+        
         TArray<FString> Files;
         IFileManager::Get().FindFiles(Files, *(ProfilesDir / TEXT("*.json")), true, false);
         
-        if (Files.Num() == 0)
+        for (const FString& File : Files)
         {
-            AppendLine(TEXT("No profiles found in Content/AIProfiles/"));
+            ProfileOptions.Add(MakeShared<FString>(FPaths::GetBaseFilename(File)));
+        }
+        
+        if (ProfileComboBox.IsValid())
+        {
+            ProfileComboBox->RefreshOptions();
+        }
+    }
+
+    TSharedRef<SWidget> OnGenerateProfileComboItem(TSharedPtr<FString> Item)
+    {
+        return SNew(STextBlock).Text(FText::FromString(*Item));
+    }
+
+    void OnProfileSelectionChanged(TSharedPtr<FString> NewValue, ESelectInfo::Type)
+    {
+        SelectedProfile = NewValue;
+    }
+
+    FText GetSelectedProfileText() const
+    {
+        return SelectedProfile.IsValid() ? FText::FromString(*SelectedProfile) : FText::FromString(TEXT("Select a Profile..."));
+    }
+
+    FReply OnRefreshProfiles()
+    {
+        RefreshProfileList();
+        AppendLine(TEXT("Profile list refreshed."));
+        return FReply::Handled();
+    }
+
+    FReply OnCreateProfile()
+    {
+        FString ProfilesDir = GetProfilesDirectory();
+        FString NewName = FString::Printf(TEXT("NewProfile_%s"), *FDateTime::Now().ToString(TEXT("%H%M%S")));
+        FString NewPath = ProfilesDir / NewName + TEXT(".json");
+        
+        // Basic template
+        FString Template = TEXT(R"({
+  "name": "New AI Profile",
+  "states": [
+    {
+      "id": "idle",
+      "actions": []
+    }
+  ]
+})");
+        
+        if (FFileHelper::SaveStringToFile(Template, *NewPath))
+        {
+            AppendLine(FString::Printf(TEXT("Created new profile: %s"), *NewName));
+            RefreshProfileList();
+            
+            // Auto-select the new one
+            for (auto Option : ProfileOptions)
+            {
+                if (*Option == NewName)
+                {
+                    SelectedProfile = Option;
+                    if (ProfileComboBox.IsValid())
+                    {
+                        ProfileComboBox->SetSelectedItem(Option);
+                    }
+                    OnLoadProfile();
+                    break;
+                }
+            }
         }
         else
         {
-            for (const FString& File : Files)
-            {
-                AppendLine(FString::Printf(TEXT("  • %s"), *FPaths::GetBaseFilename(File)));
-            }
-            AppendLine(FString::Printf(TEXT("Total: %d profiles"), Files.Num()));
+            AppendLine(TEXT("ERROR: Failed to create new profile file."));
         }
         
         return FReply::Handled();
@@ -178,8 +290,25 @@ private:
 
     FReply OnLoadProfile()
     {
-        AppendLine(TEXT("[Load] Enter profile name in log (feature requires EUW for file dialog)"));
-        AppendLine(TEXT("Tip: Use 'List Profiles' to see available profiles"));
+        if (!SelectedProfile.IsValid())
+        {
+            AppendLine(TEXT("Please select a profile first."));
+            return FReply::Handled();
+        }
+
+        CurrentProfileName = *SelectedProfile;
+        FString FilePath = GetProfilesDirectory() / CurrentProfileName + TEXT(".json");
+        
+        if (FFileHelper::LoadFileToString(CurrentProfileJson, *FilePath))
+        {
+            AppendLine(FString::Printf(TEXT("[Load] Loaded: %s"), *CurrentProfileName));
+            AppendLine(TEXT("Tip: Use the Graph Editor (Tools > EAIS Graph Editor) for visual editing"));
+        }
+        else
+        {
+            AppendLine(FString::Printf(TEXT("[Load] ERROR: Failed to read %s"), *CurrentProfileName));
+        }
+        
         return FReply::Handled();
     }
 
@@ -187,7 +316,7 @@ private:
     {
         if (CurrentProfileName.IsEmpty())
         {
-            AppendLine(TEXT("[Save] No profile loaded. Load a profile first."));
+            AppendLine(TEXT("[Save] No profile loaded. Load or Create a profile first."));
             return FReply::Handled();
         }
         

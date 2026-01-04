@@ -40,8 +40,5 @@ public class P_EAIS : ModuleRules
 				"SlateCore",
 			}
 		);
-
-		// Allow circular dependency with P_MiniFootball for AI integration
-		// CircularlyReferencedDependentModules.Add("P_MiniFootball");
 	}
 }

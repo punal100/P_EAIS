@@ -1,0 +1,25 @@
+{
+    "version": 1,
+    "actions": [
+        {
+            "name": "Log",
+            "paramsStruct": "FAISLogParams"
+        },
+        {
+            "name": "InjectInput",
+            "paramsStruct": "FAIInputActionParams"
+        },
+        {
+            "name": "MoveTo",
+            "paramsStruct": "FAIMoveToParams"
+        },
+        {
+            "name": "Wait",
+            "paramsStruct": "FAIWaitParams"
+        },
+        {
+            "name": "SetBlackboard",
+            "paramsStruct": "FAISetBlackboardParams"
+        }
+    ]
+}

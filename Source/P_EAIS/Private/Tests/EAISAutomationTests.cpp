@@ -23,24 +23,34 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEAISJsonParsingTest, "EAIS.Core.JsonParsing",
 
 bool FEAISJsonParsingTest::RunTest(const FString& Parameters)
 {
-    // Test JSON parsing
+    // Test JSON parsing with canonical array-based format
     FString TestJson = TEXT(R"({
         "name": "TestBehavior",
-        "blackboard": {
-            "TestBool": true,
-            "TestFloat": 0.5
-        },
-        "states": {
-            "StateA": {
-                "OnEnter": [{ "Action": "Wait" }],
-                "Transitions": [
-                    { "Target": "StateB", "Condition": { "type": "Timer", "seconds": 1.0 } }
+        "initialState": "StateA",
+        "blackboard": [
+            { "key": "TestBool", "value": { "type": "Bool", "rawValue": "true" } },
+            { "key": "TestFloat", "value": { "type": "Float", "rawValue": "0.5" } }
+        ],
+        "states": [
+            {
+                "id": "StateA",
+                "terminal": false,
+                "onEnter": [{ "actionName": "Wait", "paramsJson": "{}" }],
+                "onTick": [],
+                "onExit": [],
+                "transitions": [
+                    { "to": "StateB", "priority": 100, "condition": { "type": "Timer", "keyOrName": "", "op": "GreaterThan", "compareValue": { "type": "Float", "rawValue": "0" }, "seconds": 1.0 } }
                 ]
             },
-            "StateB": {
-                "Transitions": []
+            {
+                "id": "StateB",
+                "terminal": true,
+                "onEnter": [],
+                "onTick": [],
+                "onExit": [],
+                "transitions": []
             }
-        }
+        ]
     })");
 
     UAIBehaviour* Behavior = NewObject<UAIBehaviour>();
@@ -133,10 +143,11 @@ bool FEAISInterpreterInitTest::RunTest(const FString& Parameters)
 {
     FString TestJson = TEXT(R"({
         "name": "InitTest",
-        "blackboard": { "Counter": 0 },
-        "states": {
-            "Initial": { "Transitions": [] }
-        }
+        "initialState": "Initial",
+        "blackboard": [{ "key": "Counter", "value": { "type": "Int", "rawValue": "0" } }],
+        "states": [
+            { "id": "Initial", "terminal": true, "onEnter": [], "onTick": [], "onExit": [], "transitions": [] }
+        ]
     })");
 
     FAIInterpreter Interpreter;
@@ -166,19 +177,26 @@ bool FEAISStateTransitionTest::RunTest(const FString& Parameters)
     // This test validates the behavior definition parsing for transitions
     FString TestJson = TEXT(R"({
         "name": "TransitionTest",
-        "states": {
-            "A": {
-                "Transitions": [
-                    { "Target": "B", "Condition": { "type": "Timer", "seconds": 0.5 } }
+        "initialState": "A",
+        "states": [
+            {
+                "id": "A",
+                "terminal": false,
+                "onEnter": [], "onTick": [], "onExit": [],
+                "transitions": [
+                    { "to": "B", "priority": 100, "condition": { "type": "Timer", "keyOrName": "", "op": "GreaterThan", "compareValue": { "type": "Float", "rawValue": "0" }, "seconds": 0.5 } }
                 ]
             },
-            "B": {
-                "Transitions": [
-                    { "Target": "C", "Condition": { "type": "Event", "name": "TestEvent" } }
+            {
+                "id": "B",
+                "terminal": false,
+                "onEnter": [], "onTick": [], "onExit": [],
+                "transitions": [
+                    { "to": "C", "priority": 100, "condition": { "type": "Event", "keyOrName": "TestEvent", "op": "Equal", "compareValue": { "type": "Bool", "rawValue": "true" } } }
                 ]
             },
-            "C": { "Transitions": [] }
-        }
+            { "id": "C", "terminal": true, "onEnter": [], "onTick": [], "onExit": [], "transitions": [] }
+        ]
     })");
 
     FAIInterpreter Interpreter;
@@ -202,15 +220,19 @@ bool FEAISEventHandlingTest::RunTest(const FString& Parameters)
 {
     FString TestJson = TEXT(R"({
         "name": "EventTest",
-        "blackboard": { "EventReceived": false },
-        "states": {
-            "Waiting": {
-                "Transitions": [
-                    { "Target": "Done", "Condition": { "type": "Event", "name": "MyEvent" } }
+        "initialState": "Waiting",
+        "blackboard": [{ "key": "EventReceived", "value": { "type": "Bool", "rawValue": "false" } }],
+        "states": [
+            {
+                "id": "Waiting",
+                "terminal": false,
+                "onEnter": [], "onTick": [], "onExit": [],
+                "transitions": [
+                    { "to": "Done", "priority": 100, "condition": { "type": "Event", "keyOrName": "MyEvent", "op": "Equal", "compareValue": { "type": "Bool", "rawValue": "true" } } }
                 ]
             },
-            "Done": { "Transitions": [] }
-        }
+            { "id": "Done", "terminal": true, "onEnter": [], "onTick": [], "onExit": [], "transitions": [] }
+        ]
     })");
 
     FAIInterpreter Interpreter;
@@ -286,7 +308,8 @@ bool FEAISTickExecutionTest::RunTest(const FString& Parameters)
     
     FString TestJson = TEXT(R"({
         "name": "TickTest",
-        "states": { "Idle": { "Transitions": [] } }
+        "initialState": "Idle",
+        "states": [{ "id": "Idle", "terminal": true, "onEnter": [], "onTick": [], "onExit": [], "transitions": [] }]
     })");
     
     FString Error;

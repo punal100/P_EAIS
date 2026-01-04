@@ -21,6 +21,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "P_EAIS_Editor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "P_EAISTools",
 			"Type": "Editor",
 			"LoadingPhase": "Default"

@@ -73,6 +73,20 @@ private:
 };
 
 /**
+ * Log action - prints a message to output log
+ */
+UCLASS(BlueprintType)
+class P_EAIS_API UAIAction_Log : public UAIAction
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params) override;
+    virtual void Abort_Implementation() override;
+    virtual FString GetActionName() const override { return TEXT("Log"); }
+};
+
+/**
  * Kick action - kicks the ball (via P_MEIS injection)
  */
 UCLASS(BlueprintType)

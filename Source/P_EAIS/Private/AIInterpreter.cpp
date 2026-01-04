@@ -38,43 +38,37 @@ bool FAIInterpreter::LoadFromDef(const FAIBehaviorDef& InBehaviorDef)
 
     BehaviorDef = InBehaviorDef;
 
-    // Initialize blackboard with default values
-    for (const auto& Pair : BehaviorDef.Blackboard)
+    // Initialize blackboard with default values from behavior definition
+    for (const FEAISBlackboardEntry& Entry : BehaviorDef.Blackboard)
     {
         FBlackboardValue Value;
+        Value.Type = Entry.Value.Type;
+        Value.RawValue = Entry.Value.RawValue;
         
-        // Try to detect type from string value
-        if (Pair.Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) ||
-            Pair.Value.Equals(TEXT("false"), ESearchCase::IgnoreCase))
+        // Parse from raw value based on type
+        switch (Entry.Value.Type)
         {
-            Value.Type = EBlackboardValueType::Bool;
-            Value.BoolValue = Pair.Value.Equals(TEXT("true"), ESearchCase::IgnoreCase);
-        }
-        else if (Pair.Value.Equals(TEXT("null"), ESearchCase::IgnoreCase))
-        {
-            Value.Type = EBlackboardValueType::Object;
-            Value.ObjectValue = nullptr;
-        }
-        else if (Pair.Value.IsNumeric())
-        {
-            if (Pair.Value.Contains(TEXT(".")))
-            {
-                Value.Type = EBlackboardValueType::Float;
-                Value.FloatValue = FCString::Atof(*Pair.Value);
-            }
-            else
-            {
-                Value.Type = EBlackboardValueType::Int;
-                Value.IntValue = FCString::Atoi(*Pair.Value);
-            }
-        }
-        else
-        {
-            Value.Type = EBlackboardValueType::String;
-            Value.StringValue = Pair.Value;
+        case EBlackboardValueType::Bool:
+            Value.BoolValue = Entry.Value.RawValue.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+            break;
+        case EBlackboardValueType::Int:
+            Value.IntValue = FCString::Atoi(*Entry.Value.RawValue);
+            break;
+        case EBlackboardValueType::Float:
+            Value.FloatValue = FCString::Atof(*Entry.Value.RawValue);
+            break;
+        case EBlackboardValueType::String:
+            Value.StringValue = Entry.Value.RawValue;
+            break;
+        case EBlackboardValueType::Vector:
+            Value.VectorValue.InitFromString(Entry.Value.RawValue);
+            break;
+        default:
+            Value.StringValue = Entry.Value.RawValue;
+            break;
         }
 
-        Blackboard.Add(Pair.Key, Value);
+        Blackboard.Add(Entry.Key, Value);
     }
 
     return true;
@@ -99,21 +93,29 @@ void FAIInterpreter::Reset()
 
     // Reinitialize blackboard
     Blackboard.Empty();
-    for (const auto& Pair : BehaviorDef.Blackboard)
+    for (const FEAISBlackboardEntry& Entry : BehaviorDef.Blackboard)
     {
         FBlackboardValue Value;
-        if (Pair.Value.Equals(TEXT("true"), ESearchCase::IgnoreCase) ||
-            Pair.Value.Equals(TEXT("false"), ESearchCase::IgnoreCase))
+        Value.Type = Entry.Value.Type;
+        Value.RawValue = Entry.Value.RawValue;
+        
+        if (Entry.Value.Type == EBlackboardValueType::Bool)
         {
-            Value.Type = EBlackboardValueType::Bool;
-            Value.BoolValue = Pair.Value.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+            Value.BoolValue = Entry.Value.RawValue.Equals(TEXT("true"), ESearchCase::IgnoreCase);
+        }
+        else if (Entry.Value.Type == EBlackboardValueType::Int)
+        {
+            Value.IntValue = FCString::Atoi(*Entry.Value.RawValue);
+        }
+        else if (Entry.Value.Type == EBlackboardValueType::Float)
+        {
+            Value.FloatValue = FCString::Atof(*Entry.Value.RawValue);
         }
         else
         {
-            Value.Type = EBlackboardValueType::String;
-            Value.StringValue = Pair.Value;
+            Value.StringValue = Entry.Value.RawValue;
         }
-        Blackboard.Add(Pair.Key, Value);
+        Blackboard.Add(Entry.Key, Value);
     }
 
     // Enter initial state

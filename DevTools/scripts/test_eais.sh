@@ -10,7 +10,14 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PROJECT_ROOT="$(cd "$ROOT_DIR/../.." && pwd)"
 
 UE_ROOT="${UE_ROOT:-/opt/unreal}"
-UPROJECT_PATH="$PROJECT_ROOT/A_MiniFootball.uproject"
+
+# Find .uproject file dynamically
+UPROJECT_PATH=$(find "$PROJECT_ROOT" -maxdepth 1 -name "*.uproject" -type f | head -1)
+if [ -z "$UPROJECT_PATH" ]; then
+    echo "[EAIS] ERROR: No .uproject file found in $PROJECT_ROOT"
+    exit 1
+fi
+
 AI_PROFILES_DIR="$PROJECT_ROOT/Content/AIProfiles"
 OUTPUT_DIR="$ROOT_DIR/DevTools/output"
 
