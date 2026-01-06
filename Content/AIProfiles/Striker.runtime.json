@@ -1,87 +1,138 @@
 {
   "name": "Striker",
-  "initialState": "Idle",
+  "initialState": "Main",
   "blackboard": [
     { "key": "HasBall", "value": { "type": "Bool", "rawValue": "false" } },
     { "key": "Role", "value": { "type": "String", "rawValue": "Striker" } },
-    { "key": "Team", "value": { "type": "Int", "rawValue": "0" } },
-    { "key": "IsHumanControlled", "value": { "type": "Bool", "rawValue": "false" } }
+    { "key": "TeamID", "value": { "type": "Float", "rawValue": "0" } }
   ],
   "states": [
     {
-      "id": "Idle",
+      "id": "Main",
       "terminal": false,
       "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Entering Idle\" }" }
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Striker AI Active\" }" }
       ],
       "onTick": [],
       "onExit": [],
       "transitions": [
         {
-          "to": "ChaseBall",
-          "priority": 100,
+          "to": "Tackle",
+          "priority": 1000,
           "condition": {
             "type": "Blackboard",
-            "keyOrName": "HasBall",
+            "keyOrName": "OpponentHasBall",
             "op": "Equal",
-            "compareValue": { "type": "Bool", "rawValue": "false" }
+            "compareValue": { "type": "Bool", "rawValue": "true" }
           }
-        }
-      ]
-    },
-    {
-      "id": "ChaseBall",
-      "terminal": false,
-      "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Chasing Ball\" }" }
-      ],
-      "onTick": [
-        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"ball\" }" }
-      ],
-      "onExit": [],
-      "transitions": [
+        },
         {
-          "to": "Attack",
-          "priority": 100,
+          "to": "SafetyPass",
+          "priority": 900,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "IsInDanger",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "Shoot",
+          "priority": 800,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "HasClearShot",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "ChaseBall",
+          "priority": 700,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "IsBallLoose",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "DribbleToGoal",
+          "priority": 600,
           "condition": {
             "type": "Blackboard",
             "keyOrName": "HasBall",
             "op": "Equal",
             "compareValue": { "type": "Bool", "rawValue": "true" }
           }
+        },
+        {
+          "to": "Support",
+          "priority": 500,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "TeamHasBall",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "ReturnHome",
+          "priority": 100,
+          "condition": {
+            "type": "Timer",
+            "keyOrName": "",
+            "op": "GreaterThan",
+            "compareValue": { "type": "Float", "rawValue": "0.0" },
+            "seconds": 0.0
+          }
         }
       ]
     },
     {
-      "id": "Attack",
+      "id": "Tackle",
       "terminal": false,
       "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Attacking\" }" }
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Tackling!\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Tackle\" }" }
       ],
       "onTick": [
-        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"opponentGoal\" }" }
+        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Ball\" }" }
       ],
       "onExit": [],
       "transitions": [
         {
-          "to": "Shoot",
+          "to": "Main",
           "priority": 100,
           "condition": {
-            "type": "Distance",
-            "keyOrName": "opponentGoal",
-            "op": "LessThan",
-            "compareValue": { "type": "Float", "rawValue": "500.0" },
-            "target": "opponentGoal"
+            "type": "Timer",
+            "keyOrName": "",
+            "op": "GreaterThan",
+            "compareValue": { "type": "Float", "rawValue": "0.0" },
+            "seconds": 0.5
           }
-        },
+        }
+      ]
+    },
+    {
+      "id": "SafetyPass",
+      "terminal": false,
+      "onEnter": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Danger! Passing\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Pass\" }" }
+      ],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
         {
-          "to": "ChaseBall",
-          "priority": 50,
+          "to": "Main",
+          "priority": 100,
           "condition": {
-            "type": "Blackboard",
-            "keyOrName": "HasBall",
-            "op": "Equal",
-            "compareValue": { "type": "Bool", "rawValue": "false" }
+            "type": "Timer",
+            "keyOrName": "",
+            "op": "GreaterThan",
+            "compareValue": { "type": "Float", "rawValue": "0.0" },
+            "seconds": 0.3
           }
         }
       ]
@@ -90,14 +141,15 @@
       "id": "Shoot",
       "terminal": false,
       "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Shooting\" }" },
-        { "actionName": "InjectInput", "paramsJson": "{ \"actionName\": \"IA_Kick\", \"phase\": \"Started\" }" }
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Shooting!\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Face\", \"params\": { \"target\": \"Goal_Opponent\" } }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Shoot\", \"params\": { \"power\": 0.9 } }" }
       ],
       "onTick": [],
       "onExit": [],
       "transitions": [
         {
-          "to": "Idle",
+          "to": "Main",
           "priority": 100,
           "condition": {
             "type": "Timer",
@@ -105,6 +157,115 @@
             "op": "GreaterThan",
             "compareValue": { "type": "Float", "rawValue": "0.0" },
             "seconds": 0.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "ChaseBall",
+      "terminal": false,
+      "onEnter": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Chasing Ball\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": true } }" }
+      ],
+      "onTick": [
+        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Ball\" }" }
+      ],
+      "onExit": [
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": false } }" }
+      ],
+      "transitions": [
+        {
+          "to": "Main",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "HasBall",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "Main",
+          "priority": 50,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "IsBallLoose",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "false" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "DribbleToGoal",
+      "terminal": false,
+      "onEnter": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Dribbling to Goal\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": true } }" }
+      ],
+      "onTick": [
+        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Goal_Opponent\" }" }
+      ],
+      "onExit": [
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": false } }" }
+      ],
+      "transitions": [
+        {
+          "to": "Main",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "HasBall",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "false" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Support",
+      "terminal": false,
+      "onEnter": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Moving to Support\" }" }
+      ],
+      "onTick": [
+        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Goal_Opponent\" }" }
+      ],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Main",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "TeamHasBall",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "false" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "ReturnHome",
+      "terminal": false,
+      "onEnter": [
+        { "actionName": "Log", "paramsJson": "{ \"message\": \"Returning to Formation\" }" }
+      ],
+      "onTick": [
+        { "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Home\" }" }
+      ],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Main",
+          "priority": 100,
+          "condition": {
+            "type": "Distance",
+            "keyOrName": "Home",
+            "op": "LessThan",
+            "compareValue": { "type": "Float", "rawValue": "50.0" },
+            "target": "Home"
           }
         }
       ]

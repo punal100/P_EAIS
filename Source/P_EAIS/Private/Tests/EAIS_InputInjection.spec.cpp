@@ -77,6 +77,9 @@ bool FEAISInputEventTest::RunTest(const FString& Parameters)
     bool bLoaded = Interpreter.LoadFromDef(Def);
     TestTrue(TEXT("Definition should load"), bLoaded);
     
+    // Initialize/Reset to enter initial state
+    Interpreter.Reset();
+    
     // Enqueue an event
     Interpreter.EnqueueEvent(TEXT("InputReceived"), FAIEventPayload());
     

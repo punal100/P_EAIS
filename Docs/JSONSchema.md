@@ -3,31 +3,38 @@
 ## Overview
 
 EAIS uses two JSON formats:
+
 1. **Runtime JSON** (`*.runtime.json`) - Loaded at runtime
 2. **Editor JSON** (`*.editor.json`) - Used by visual editor only
 
 ## File Locations
 
-| Type | Location |
-|------|----------|
+| Type         | Location                            |
+| ------------ | ----------------------------------- |
 | Runtime JSON | `Content/AIProfiles/*.runtime.json` |
-| Editor JSON | `Editor/AI/*.editor.json` |
+| Editor JSON  | `Editor/AI/*.editor.json`           |
 
 ---
 
 ## Runtime JSON Schema
 
 ### Top-Level Structure
+
 ```json
 {
   "name": "string",
   "initialState": "string",
-  "blackboard": [ /* FEAISBlackboardEntry[] */ ],
-  "states": [ /* FAIState[] */ ]
+  "blackboard": [
+    /* FEAISBlackboardEntry[] */
+  ],
+  "states": [
+    /* FAIState[] */
+  ]
 }
 ```
 
 ### Blackboard Entry
+
 ```json
 {
   "key": "string",
@@ -39,18 +46,28 @@ EAIS uses two JSON formats:
 ```
 
 ### State
+
 ```json
 {
   "id": "string",
   "terminal": false,
-  "onEnter": [ /* FAIActionEntry[] */ ],
-  "onTick": [ /* FAIActionEntry[] */ ],
-  "onExit": [ /* FAIActionEntry[] */ ],
-  "transitions": [ /* FAITransition[] */ ]
+  "onEnter": [
+    /* FAIActionEntry[] */
+  ],
+  "onTick": [
+    /* FAIActionEntry[] */
+  ],
+  "onExit": [
+    /* FAIActionEntry[] */
+  ],
+  "transitions": [
+    /* FAITransition[] */
+  ]
 }
 ```
 
 ### Action Entry
+
 ```json
 {
   "actionName": "string",
@@ -59,6 +76,7 @@ EAIS uses two JSON formats:
 ```
 
 ### Transition
+
 ```json
 {
   "to": "StateId",
@@ -84,21 +102,29 @@ EAIS uses two JSON formats:
 Editor JSON includes all runtime fields PLUS editor-only metadata.
 
 ### Top-Level Structure
+
 ```json
 {
   "schemaVersion": 1,
   "name": "string",
   "initialState": "string",
-  "states": [ /* same as runtime */ ],
+  "states": [
+    /* same as runtime */
+  ],
   "editor": {
-    "nodes": { /* StateId -> NodeMeta */ },
-    "edges": [ /* EdgeMeta[] */ ],
+    "nodes": {
+      /* StateId -> NodeMeta */
+    },
+    "edges": [
+      /* EdgeMeta[] */
+    ],
     "viewport": { "zoom": 1.0, "pan": { "x": 0, "y": 0 } }
   }
 }
 ```
 
 ### Node Metadata
+
 ```json
 {
   "StateId": {
@@ -110,6 +136,7 @@ Editor JSON includes all runtime fields PLUS editor-only metadata.
 ```
 
 ### Edge Metadata
+
 ```json
 {
   "from": "StateId",
@@ -123,6 +150,7 @@ Editor JSON includes all runtime fields PLUS editor-only metadata.
 ## Forbidden Keys
 
 ### Runtime JSON MUST NOT contain:
+
 - `editor`
 - `schemaVersion`
 - `viewport`
@@ -133,34 +161,36 @@ Editor JSON includes all runtime fields PLUS editor-only metadata.
 - `comment`
 
 ### Validation
+
 Use `ValidateAIJson.ps1` to verify:
+
 ```powershell
-.\Scripts\ValidateAIJson.ps1
+.\DevTools\scripts\ValidateAIJson.ps1
 ```
 
 ---
 
 ## Condition Types
 
-| Type | Description | Required Fields |
-|------|-------------|-----------------|
-| `Blackboard` | Check blackboard value | `keyOrName`, `op`, `compareValue` |
-| `Event` | Check for event | `keyOrName` |
-| `Timer` | Check elapsed time | `seconds` |
-| `Distance` | Check distance to target | `target`, `op`, `compareValue` |
+| Type         | Description              | Required Fields                   |
+| ------------ | ------------------------ | --------------------------------- |
+| `Blackboard` | Check blackboard value   | `keyOrName`, `op`, `compareValue` |
+| `Event`      | Check for event          | `keyOrName`                       |
+| `Timer`      | Check elapsed time       | `seconds`                         |
+| `Distance`   | Check distance to target | `target`, `op`, `compareValue`    |
 
 ---
 
 ## Operator Types
 
-| Operator | Symbol | Description |
-|----------|--------|-------------|
-| `Equal` | `==` | Values are equal |
-| `NotEqual` | `!=` | Values are not equal |
-| `GreaterThan` | `>` | Left > Right |
-| `LessThan` | `<` | Left < Right |
-| `GreaterOrEqual` | `>=` | Left >= Right |
-| `LessOrEqual` | `<=` | Left <= Right |
+| Operator         | Symbol | Description          |
+| ---------------- | ------ | -------------------- |
+| `Equal`          | `==`   | Values are equal     |
+| `NotEqual`       | `!=`   | Values are not equal |
+| `GreaterThan`    | `>`    | Left > Right         |
+| `LessThan`       | `<`    | Left < Right         |
+| `GreaterOrEqual` | `>=`   | Left >= Right        |
+| `LessOrEqual`    | `<=`   | Left <= Right        |
 
 ---
 
@@ -179,7 +209,10 @@ Use `ValidateAIJson.ps1` to verify:
       "id": "Idle",
       "terminal": false,
       "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Entering Idle\" }" }
+        {
+          "actionName": "Log",
+          "paramsJson": "{ \"message\": \"Entering Idle\" }"
+        }
       ],
       "onTick": [],
       "onExit": [],
@@ -200,9 +233,7 @@ Use `ValidateAIJson.ps1` to verify:
       "id": "Active",
       "terminal": false,
       "onEnter": [],
-      "onTick": [
-        { "actionName": "DoWork", "paramsJson": "{}" }
-      ],
+      "onTick": [{ "actionName": "DoWork", "paramsJson": "{}" }],
       "onExit": [],
       "transitions": [
         {
@@ -221,4 +252,4 @@ Use `ValidateAIJson.ps1` to verify:
 
 ---
 
-*P_EAIS - Modular AI System*
+_P_EAIS - Modular AI System_

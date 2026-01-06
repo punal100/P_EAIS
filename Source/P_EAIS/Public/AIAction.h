@@ -189,3 +189,17 @@ public:
     virtual void Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params) override;
     virtual FString GetActionName() const override { return TEXT("LookAround"); }
 };
+
+/**
+ * Execute action - bridges logical action IDs to IEAIS_ActionExecutor
+ */
+UCLASS(BlueprintType)
+class P_EAIS_API UAIAction_Execute : public UAIAction
+{
+    GENERATED_BODY()
+
+public:
+    virtual void Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params) override;
+    virtual FString GetActionName() const override { return TEXT("Execute"); }
+};
+

@@ -19,6 +19,7 @@ FString UEAIS_EditorWidgetSpec::GetWidgetSpec()
     "Category": "EAIS|Editor|UI",
     "Description": "EAIS AI Editor Launcher",
     "Version": "3.0.0",
+    "IsToolEUW": true,
 
     "DesignerPreview": {
         "SizeMode": "DesiredOnScreen",

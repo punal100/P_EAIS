@@ -26,7 +26,7 @@ exit /b 1
 echo [EAIS] Generating Editor Tool Widget...
 echo [EAIS] Project: %UPROJECT_PATH%
 
-%UE_EDITOR_CMD% %UPROJECT_PATH% -run=MWCS_CreateWidgets -Mode=ForceRecreate -unattended -nullrhi -nocpu -nosound -stdout -FullStdOutLogOutput
+%UE_EDITOR_CMD% %UPROJECT_PATH% -run=MWCS_CreateWidgets -Tool=EAIS -Mode=ForceRecreate -unattended -nullrhi -nocpu -nosound -stdout -FullStdOutLogOutput
 
 if %ERRORLEVEL% NEQ 0 (
     echo [EAIS] Editor Generation FAILED!

@@ -11,6 +11,9 @@
 #include "GameFramework/PlayerController.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "EAIS_TargetProvider.h"
+#include "EAIS_ActionExecutor.h"
+#include "UObject/UObjectIterator.h"
 
 // Include P_MEIS for input injection
 #include "Manager/CPP_BPL_InputBinding.h"
@@ -45,61 +48,53 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
 
     // Get target location
     FVector TargetLocation = FVector::ZeroVector;
-    
-    // Check if target is "ball" - special case
-    if (Params.Target.Equals(TEXT("ball"), ESearchCase::IgnoreCase))
+    bool bTargetFound = false;
+
+    // 1. Try TargetProvider
+    if (IEAIS_TargetProvider* TargetProvider = Cast<IEAIS_TargetProvider>(Pawn))
     {
-        // Find ball actor
-        TArray<AActor*> FoundActors;
-        UGameplayStatics::GetAllActorsWithTag(OwnerComponent->GetWorld(), FName(TEXT("Ball")), FoundActors);
-        if (FoundActors.Num() > 0)
+        bTargetFound = IEAIS_TargetProvider::Execute_EAIS_GetTargetLocation(Pawn, FName(*Params.Target), TargetLocation);
+    }
+
+    // 2. Fallback to basic tag-based or blackboard
+    if (!bTargetFound)
+    {
+        // Check if target is "ball" - special case
+        if (Params.Target.Equals(TEXT("ball"), ESearchCase::IgnoreCase))
         {
-            TargetLocation = FoundActors[0]->GetActorLocation();
+            // Find ball actor
+            TArray<AActor*> FoundActors;
+            UGameplayStatics::GetAllActorsWithTag(OwnerComponent->GetWorld(), FName(TEXT("Ball")), FoundActors);
+            if (FoundActors.Num() > 0)
+            {
+                TargetLocation = FoundActors[0]->GetActorLocation();
+                bTargetFound = true;
+            }
+        }
+        else if (Params.Target.StartsWith(TEXT("(")))
+        {
+            // Parse vector string
+            TargetLocation.InitFromString(Params.Target);
+            bTargetFound = true;
+        }
+        else
+        {
+            // Try to get from blackboard
+            TargetLocation = OwnerComponent->GetBlackboardVector(Params.Target);
+            bTargetFound = !TargetLocation.IsZero();
         }
     }
-    // Check for "opponentGoal"
-    else if (Params.Target.Equals(TEXT("opponentGoal"), ESearchCase::IgnoreCase))
+
+    if (!bTargetFound)
     {
-        // Find goals
-        TArray<AActor*> FoundGoals;
-        UGameplayStatics::GetAllActorsWithTag(OwnerComponent->GetWorld(), FName(TEXT("Goal")), FoundGoals);
-        
-        // Determine opponent goal based on team
-        float TeamIDVal = OwnerComponent->GetBlackboardFloat(TEXT("TeamID"));
-        int32 MyTeam = FMath::RoundToInt(TeamIDVal); // 1=TeamA, 2=TeamB
-        
-        // Logic: Team A (1) Defends +Y, Attacks -Y
-        //        Team B (2) Defends -Y, Attacks +Y
-        
-        for (AActor* Goal : FoundGoals)
-        {
-            if (MyTeam == 1 && Goal->GetActorLocation().Y < 0) { TargetLocation = Goal->GetActorLocation(); break; }
-            if (MyTeam == 2 && Goal->GetActorLocation().Y > 0) { TargetLocation = Goal->GetActorLocation(); break; }
-        }
-    }
-    else if (Params.Target.StartsWith(TEXT("(")))
-    {
-        // Parse vector string
-        TargetLocation.InitFromString(Params.Target);
-    }
-    else
-    {
-        // Try to get from blackboard
-        TargetLocation = OwnerComponent->GetBlackboardVector(Params.Target);
+        UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: Could not resolve target '%s'"), *Params.Target);
+        return;
     }
 
     // Move to target
     float AcceptanceRadius = 50.0f;
-    UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: Moving to %s (Cmd: %s)"), *TargetLocation.ToString(), *Params.Target);
-    
-    if (TargetLocation.IsZero())
-    {
-         UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: TargetLocation is ZERO! Target param was: '%s'"), *Params.Target);
-    }
-
     EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, true, true);
-    UE_LOG(LogTemp, Warning, TEXT("UAIAction_MoveTo: MoveToLocation Result: %d (0=Failed, 1=AlreadyAtGoal, 2=RequestSuccessful)"), (int32)Result);
-
+    
     PathFollowingComp = AIController->GetPathFollowingComponent();
 }
 
@@ -441,4 +436,60 @@ void UAIAction_LookAround::Execute_Implementation(UAIComponent* OwnerComponent, 
         // Clear focus to look around freely
         AIController->ClearFocus(EAIFocusPriority::Gameplay);
     }
+}
+
+// ==================== Execute ====================
+
+void UAIAction_Execute::Execute_Implementation(UAIComponent* OwnerComponent, const FAIActionParams& Params)
+{
+    if (!OwnerComponent) return;
+    AActor* Owner = OwnerComponent->GetOwner();
+    if (!Owner) return;
+
+    // Look for ActionExecutor in owner actor components
+    IEAIS_ActionExecutor* Executor = Cast<IEAIS_ActionExecutor>(Owner);
+    if (!Executor)
+    {
+        // Try components
+        TArray<UActorComponent*> Components;
+        Owner->GetComponents(Components);
+        for (UActorComponent* Comp : Components)
+        {
+            if (Comp->GetClass()->ImplementsInterface(UEAIS_ActionExecutor::StaticClass()))
+            {
+                Executor = Cast<IEAIS_ActionExecutor>(Comp);
+                break;
+            }
+        }
+    }
+
+    if (Executor)
+    {
+        // Params.Target is the ActionId
+        // Params.ExtraParams can be serialized to JSON if needed, or we just pass a fake JSON for now
+        FString JsonParams = TEXT("{}");
+        if (Params.ExtraParams.Num() > 0)
+        {
+            // Simple serialization
+            JsonParams = TEXT("{");
+            bool bFirst = true;
+            for (auto& Pair : Params.ExtraParams)
+            {
+                if (!bFirst) JsonParams += TEXT(",");
+                JsonParams += FString::Printf(TEXT("\"%s\":\"%s\""), *Pair.Key, *Pair.Value);
+                bFirst = false;
+            }
+            JsonParams += TEXT("}");
+        }
+
+        // Pass the actual object that implements the interface (either the Owner or the Component)
+        UObject* ImplementingObject = Cast<UObject>(Executor);
+        IEAIS_ActionExecutor::Execute_EAIS_ExecuteAction(ImplementingObject, FName(*Params.Target), JsonParams);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UAIAction_Execute: No IEAIS_ActionExecutor found on %s"), *Owner->GetName());
+    }
+
+    Complete();
 }

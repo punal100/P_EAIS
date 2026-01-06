@@ -16,19 +16,6 @@ class UEAIS_TargetProvider : public UInterface
 /**
  * Implement this interface on your Pawn/Character to provide targets to AI.
  * This decouples P_EAIS from game-specific classes.
- * 
- * Example implementation in your game's Character:
- * @code
- * class AMyCharacter : public ACharacter, public IEAIS_TargetProvider
- * {
- *     virtual FVector ResolveTargetLocation_Implementation(const FString& TargetName) const override
- *     {
- *         if (TargetName == "ball") return GetBallLocation();
- *         if (TargetName == "opponentGoal") return GetOpponentGoalLocation();
- *         return FVector::ZeroVector;
- *     }
- * };
- * @endcode
  */
 class P_EAIS_API IEAIS_TargetProvider
 {
@@ -36,36 +23,40 @@ class P_EAIS_API IEAIS_TargetProvider
 
 public:
     /**
-     * Resolve a target name (e.g., "ball", "opponentGoal") to a world location.
-     * @param TargetName Logical name of the target
-     * @return World location of the target, or ZeroVector if not found
+     * Resolve a target ID (e.g., "Ball", "Goal_Opponent") to a world location.
+     * @param TargetId Logical ID of the target
+     * @param OutLocation Resulting world location
+     * @return True if target was resolved successfully
      */
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "EAIS")
-    FVector ResolveTargetLocation(const FString& TargetName) const;
-    virtual FVector ResolveTargetLocation_Implementation(const FString& TargetName) const { return FVector::ZeroVector; }
+    bool EAIS_GetTargetLocation(FName TargetId, FVector& OutLocation) const;
+    virtual bool EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const { return false; }
     
     /**
-     * Resolve a target name to an actor.
-     * @param TargetName Logical name of the target
-     * @return Actor for the target, or nullptr if not found
+     * Resolve a target ID to an actor.
+     * @param TargetId Logical ID of the target
+     * @param OutActor Resulting actor
+     * @return True if target was resolved successfully
      */
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "EAIS")
-    AActor* ResolveTargetActor(const FString& TargetName) const;
-    virtual AActor* ResolveTargetActor_Implementation(const FString& TargetName) const { return nullptr; }
+    bool EAIS_GetTargetActor(FName TargetId, AActor*& OutActor) const;
+    virtual bool EAIS_GetTargetActor_Implementation(FName TargetId, AActor*& OutActor) const { return false; }
+
     
     /**
      * Get the current team ID for this AI.
      * @return Team ID (0 = no team)
      */
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "EAIS")
-    int32 GetTeamId() const;
-    virtual int32 GetTeamId_Implementation() const { return 0; }
+    int32 EAIS_GetTeamId() const;
+    virtual int32 EAIS_GetTeamId_Implementation() const { return 0; }
     
     /**
      * Get the current role for this AI.
      * @return Role name (e.g., "Striker", "Defender")
      */
     UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "EAIS")
-    FString GetRole() const;
-    virtual FString GetRole_Implementation() const { return TEXT(""); }
+    FString EAIS_GetRole() const;
+    virtual FString EAIS_GetRole_Implementation() const { return TEXT(""); }
 };
+

@@ -42,6 +42,8 @@ param(
     [string]$UEPath = $null,
     [switch]$SkipBuild,
     [switch]$RunTests,
+    [switch]$RegenerateEUW,
+    [int]$Timeout = 300,
     [switch]$VerboseOutput
 )
 
@@ -60,7 +62,8 @@ Write-Host ""
 
 # Get script and plugin directories
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$PEAISRoot = Split-Path -Parent $ScriptDir
+$PluginRoot = (Resolve-Path (Join-Path $ScriptDir "..\..") ).Path
+$DevToolsRoot = (Resolve-Path (Join-Path $ScriptDir "..") ).Path
 
 # ============================================
 # HELPER FUNCTIONS
@@ -100,7 +103,7 @@ Write-Log "Detecting environment..."
 
 # Detect project
 if (-not $ProjectPath) {
-    $ProjectFile = Find-ProjectFile -StartPath $PEAISRoot
+    $ProjectFile = Find-ProjectFile -StartPath $PluginRoot
     if (-not $ProjectFile) {
         Write-Log "Could not detect project. Specify -ProjectPath" -Level Error
         exit 1
@@ -128,7 +131,7 @@ $UEBuildBat = Join-Path $UEPath "Engine\Build\BatchFiles\Build.bat"
 
 Write-Log "Project: $($ProjectFile.FullName)" -Level Success
 Write-Log "UE Path: $UEPath" -Level Success
-Write-Log "Plugin:  $PEAISRoot" -Level Success
+Write-Log "Plugin:  $PluginRoot" -Level Success
 Write-Host ""
 
 # ============================================
@@ -187,7 +190,9 @@ Write-Log "═══════════════════════
 
 $validateScript = Join-Path $ScriptDir "ValidateAIJson.ps1"
 if (Test-Path $validateScript) {
-    $validateResult = & $validateScript
+    $profilesDir = Join-Path $PluginRoot "Content\AIProfiles"
+    $editorDir = Join-Path $PluginRoot "Editor\AI"
+    $validateResult = & $validateScript -ProfilesDir $profilesDir -EditorDir $editorDir
     if ($LASTEXITCODE -eq 0) {
         Write-Log "JSON Validation PASSED" -Level Success
         $testResults += "JSONValidation: PASS"
@@ -247,15 +252,29 @@ if ($RunTests) {
         Write-Log "Running EAIS automation tests..."
         $testArgs = @(
             "`"$($ProjectFile.FullName)`"",
+            "-Map=/Engine/Maps/Entry",
             "-ExecCmds=`"Automation RunTests EAIS; Quit`"",
             "-unattended", "-nullrhi", "-nop4",
             "-testexit=`"Automation Test Queue Empty`"",
             "-stdout", "-FullStdOutLogOutput"
         )
-        
-        $testProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList $testArgs -NoNewWindow -Wait -PassThru
-        
-        if ($testProcess.ExitCode -eq 0) {
+
+        $outputDir = Join-Path $DevToolsRoot "output"
+        if (-not (Test-Path $outputDir)) {
+            New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+        }
+        $testStdout = Join-Path $outputDir "eais_tests_stdout.log"
+        $testStderr = Join-Path $outputDir "eais_tests_stderr.log"
+
+        $testProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList $testArgs -NoNewWindow -PassThru -RedirectStandardOutput $testStdout -RedirectStandardError $testStderr
+        $waited = $testProcess | Wait-Process -Timeout $Timeout -ErrorAction SilentlyContinue
+        if (-not $waited) {
+            Write-Log "Automation tests timed out after ${Timeout}s; terminating UnrealEditor-Cmd" -Level Error
+            Stop-Process -Id $testProcess.Id -Force -ErrorAction SilentlyContinue
+            $testResults += "AutomationTests: FAIL"
+            $allPassed = $false
+        }
+        elseif ($testProcess.ExitCode -eq 0) {
             Write-Log "Automation Tests PASSED" -Level Success
             $testResults += "AutomationTests: PASS"
         }
@@ -274,13 +293,69 @@ else {
 }
 
 # ----------------------------------------
-# Step 5: Source Analysis
+# ----------------------------------------
+# Step 5: Regenerate EUW (optional)
+# ----------------------------------------
+if ($RegenerateEUW) {
+    Write-Log "════════════════════════════════════════════════════════════════"
+    Write-Log "Step 5: Regenerating EUW"
+    Write-Log "════════════════════════════════════════════════════════════════"
+
+    if (-not (Test-Path $UEEditorCmd)) {
+        Write-Log "UnrealEditor-Cmd.exe not found" -Level Error
+        $testResults += "EUWRegenerate: FAIL"
+        $allPassed = $false
+    }
+    else {
+        $euwArgs = @(
+            "`"$($ProjectFile.FullName)`"",
+            "-run=EAIS_GenerateEUW",
+            "-unattended", "-nop4", "-NullRHI",
+            "-stdout", "-FullStdOutLogOutput"
+        )
+
+        $outputDir = Join-Path $DevToolsRoot "output"
+        if (-not (Test-Path $outputDir)) {
+            New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+        }
+        $euwStdout = Join-Path $outputDir "eais_generate_euw_stdout.log"
+        $euwStderr = Join-Path $outputDir "eais_generate_euw_stderr.log"
+
+        Write-Log "Running EAIS_GenerateEUW commandlet..."
+        $euwProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList $euwArgs -NoNewWindow -PassThru -RedirectStandardOutput $euwStdout -RedirectStandardError $euwStderr
+        $waited = $euwProcess | Wait-Process -Timeout $Timeout -ErrorAction SilentlyContinue
+        if (-not $waited) {
+            Write-Log "EUW regeneration timed out after ${Timeout}s; terminating UnrealEditor-Cmd" -Level Error
+            Stop-Process -Id $euwProcess.Id -Force -ErrorAction SilentlyContinue
+            $testResults += "EUWRegenerate: FAIL"
+            $allPassed = $false
+        }
+        elseif ($euwProcess.ExitCode -eq 0) {
+            Write-Log "EUW regeneration PASSED" -Level Success
+            $testResults += "EUWRegenerate: PASS"
+        }
+        else {
+            Write-Log "EUW regeneration FAILED" -Level Error
+            $testResults += "EUWRegenerate: FAIL"
+            $allPassed = $false
+        }
+    }
+    Write-Host ""
+}
+else {
+    Write-Log "Skipping EUW regeneration (use -RegenerateEUW to enable)" -Level Warning
+    $testResults += "EUWRegenerate: SKIP"
+    Write-Host ""
+}
+
+# ----------------------------------------
+# Step 6: Source Analysis
 # ----------------------------------------
 Write-Log "════════════════════════════════════════════════════════════════"
-Write-Log "Step 5: Source Code Analysis"
+Write-Log "Step 6: Source Code Analysis"
 Write-Log "════════════════════════════════════════════════════════════════"
 
-$sourceDir = Join-Path $PEAISRoot "Source"
+$sourceDir = Join-Path $PluginRoot "Source"
 $headerCount = (Get-ChildItem -Path $sourceDir -Recurse -Filter "*.h" -File).Count
 $cppCount = (Get-ChildItem -Path $sourceDir -Recurse -Filter "*.cpp" -File).Count
 $todoCount = (Get-ChildItem -Path $sourceDir -Recurse -Include "*.h", "*.cpp" | Select-String -Pattern "TODO" -List).Count
@@ -293,10 +368,10 @@ $testResults += "SourceAnalysis: PASS"
 Write-Host ""
 
 # ----------------------------------------
-# Step 6: Plugin Structure
+# Step 7: Plugin Structure
 # ----------------------------------------
 Write-Log "════════════════════════════════════════════════════════════════"
-Write-Log "Step 6: Plugin Structure Verification"
+Write-Log "Step 7: Plugin Structure Verification"
 Write-Log "════════════════════════════════════════════════════════════════"
 
 $requiredFiles = @(
@@ -307,12 +382,12 @@ $requiredFiles = @(
     "Source\P_EAIS\Public\AIInterpreter.h",
     "Source\P_EAIS\Public\AIComponent.h",
     "Source\P_EAIS_Editor\Public\SEAIS_GraphEditor.h",
-    "Scripts\ValidateAIJson.ps1"
+    "DevTools\scripts\ValidateAIJson.ps1"
 )
 
 $missingFiles = @()
 foreach ($file in $requiredFiles) {
-    $fullPath = Join-Path $PEAISRoot $file
+    $fullPath = Join-Path $PluginRoot $file
     if (Test-Path $fullPath) {
         if ($VerboseOutput) {
             Write-Log "[EXISTS] $file"

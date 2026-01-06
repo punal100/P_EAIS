@@ -19,8 +19,8 @@
 #>
 
 param(
-    [string]$ProfilesDir = "$PSScriptRoot/../Content/AIProfiles",
-    [string]$EditorDir = "$PSScriptRoot/../Editor/AI"
+    [string]$ProfilesDir = "$PSScriptRoot/../../Content/AIProfiles",
+    [string]$EditorDir = "$PSScriptRoot/../../Editor/AI"
 )
 
 $ErrorActionPreference = "Stop"
@@ -46,6 +46,26 @@ Write-Host ""
 Write-Host "ProfilesDir: $ProfilesDir" -ForegroundColor Gray
 Write-Host "EditorDir: $EditorDir" -ForegroundColor Gray
 Write-Host ""
+
+# Normalize paths early (and fail fast if missing)
+try {
+    if (-not (Test-Path $ProfilesDir)) {
+        Fail "Profiles directory not found: $ProfilesDir"
+    }
+    else {
+        $ProfilesDir = (Resolve-Path $ProfilesDir).Path
+    }
+
+    if (-not (Test-Path $EditorDir)) {
+        Fail "Editor directory not found: $EditorDir"
+    }
+    else {
+        $EditorDir = (Resolve-Path $EditorDir).Path
+    }
+}
+catch {
+    Fail "Path normalization error: $($_.Exception.Message)"
+}
 
 # 1) Validate editor JSON schema
 if (Test-Path $EditorDir) {
@@ -84,7 +104,17 @@ if (Test-Path $EditorDir) {
             }
 
             # Validate state objects and ensure NO inline layout keys
+            $stateIds = @{}
             foreach ($s in $j.states) {
+                if (-not (HasKey $s "id") -or [string]::IsNullOrWhiteSpace($s.id)) {
+                    Fail "State missing valid 'id' in $RelPath"
+                    break
+                }
+                if ($stateIds.ContainsKey($s.id)) {
+                    Fail "Duplicate state ID found: '$($s.id)' in $RelPath"
+                }
+                $stateIds[$s.id] = $true
+
                 foreach ($k in @("id", "terminal", "onEnter", "onTick", "onExit", "transitions")) {
                     if (-not (HasKey $s $k)) { 
                         Fail "State '$($s.id)' missing [$k] in $RelPath"
@@ -110,8 +140,6 @@ if (Test-Path $EditorDir) {
             }
 
             # Ensure every state has a node layout entry
-            $stateIds = @{}
-            foreach ($s in $j.states) { $stateIds[$s.id] = $true }
             foreach ($id in $stateIds.Keys) {
                 if (-not (HasKey $nodeMap $id)) {
                     Fail "Missing editor.nodes layout for state [$id]: $RelPath"
@@ -123,6 +151,20 @@ if (Test-Path $EditorDir) {
                     }
                     elseif (-not (HasKey $n.pos "x") -or -not (HasKey $n.pos "y")) { 
                         Fail "Missing pos.x/pos.y for [$id]: $RelPath"
+                    }
+                }
+            }
+
+            # Transition target existence check (editor)
+            foreach ($s in $j.states) {
+                if (HasKey $s "transitions") {
+                    foreach ($t in $s.transitions) {
+                        if (HasKey $t "target") {
+                            $targetState = $t.target
+                            if (-not [string]::IsNullOrWhiteSpace($targetState) -and -not $stateIds.ContainsKey($targetState)) {
+                                Fail "Transition in state '$($s.id)' targets non-existent state: '$targetState' in $RelPath"
+                            }
+                        }
                     }
                 }
             }
@@ -176,6 +218,33 @@ if (Test-Path $ProfilesDir) {
                     $hasError = $true
                 }
                 else {
+                    # --- State ID Uniqueness Check ---
+                    $stateIds = @{}
+                    foreach ($state in $j.states) {
+                        if (-not (HasKey $state "id") -or [string]::IsNullOrWhiteSpace($state.id)) {
+                            Fail "Runtime JSON state missing valid 'id': $RelPath"
+                            $hasError = $true
+                            continue
+                        }
+                        $id = $state.id
+                        if ($stateIds.ContainsKey($id)) {
+                            Fail "Duplicate state ID found: '$id' in $RelPath"
+                            $hasError = $true
+                        }
+                        else {
+                            $stateIds[$id] = $true
+                        }
+                    }
+
+                    # initialState must exist
+                    if (HasKey $j "initialState") {
+                        $initial = $j.initialState
+                        if (-not [string]::IsNullOrWhiteSpace($initial) -and -not $stateIds.ContainsKey($initial)) {
+                            Fail "Runtime JSON initialState '$initial' does not match any state id: $RelPath"
+                            $hasError = $true
+                        }
+                    }
+
                     foreach ($s in $j.states) {
                         foreach ($bad in $RuntimeForbiddenState) {
                             if (HasKey $s $bad) { 
@@ -190,6 +259,19 @@ if (Test-Path $ProfilesDir) {
                                 if (-not (HasKey $t "priority")) {
                                     Fail "Runtime JSON transition missing 'priority' in state '$($s.id)': $RelPath"
                                     $hasError = $true
+                                }
+                                elseif ($t.priority -isnot [int]) {
+                                    Fail "Runtime JSON transition priority must be int in state '$($s.id)': $RelPath"
+                                    $hasError = $true
+                                }
+
+                                # --- Transition Target Existence Check ---
+                                if (HasKey $t "target") {
+                                    $targetState = $t.target
+                                    if (-not [string]::IsNullOrWhiteSpace($targetState) -and -not $stateIds.ContainsKey($targetState)) {
+                                        Fail "Transition in state '$($s.id)' targets non-existent state: '$targetState' in $RelPath"
+                                        $hasError = $true
+                                    }
                                 }
                             }
                         }

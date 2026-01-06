@@ -182,4 +182,6 @@ void UEAISSubsystem::RegisterDefaultActions()
     RegisterAction(TEXT("PassToTeammate"), UAIAction_PassToTeammate::StaticClass());
     RegisterAction(TEXT("LookAround"), UAIAction_LookAround::StaticClass());
     RegisterAction(TEXT("Log"), UAIAction_Log::StaticClass());
+    RegisterAction(TEXT("Execute"), UAIAction_Execute::StaticClass());
 }
+

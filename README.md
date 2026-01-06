@@ -4,8 +4,7 @@
 [![UE Version](https://img.shields.io/badge/UE-5.x-blue)]()
 [![Status](https://img.shields.io/badge/status-Work%20In%20Progress-yellow)]()
 
-> [!WARNING]
-> **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
+> [!WARNING] > **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
 
 **P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime** and a **Visual AI Editor**.
 
@@ -31,7 +30,10 @@ P_EAIS/
 │   └── P_EAISTools/          # Editor tools (EUW, commandlets)
 ├── Content/AIProfiles/       # Runtime JSON profiles (*.runtime.json)
 ├── Editor/AI/                # Editor JSON (*.editor.json)
-├── Scripts/                  # Validation scripts
+├── DevTools/                 # CI, output, and scripts
+│   ├── ci/                   # CI configuration
+│   ├── output/               # Build/test output
+│   └── scripts/              # Validation scripts
 └── Docs/                     # Documentation
 ```
 
@@ -133,10 +135,18 @@ Tools → EAIS → EAIS AI Editor
 {
   "id": "StateId",
   "terminal": false,
-  "onEnter": [ /* actions */ ],
-  "onTick": [ /* actions */ ],
-  "onExit": [ /* actions */ ],
-  "transitions": [ /* transitions */ ]
+  "onEnter": [
+    /* actions */
+  ],
+  "onTick": [
+    /* actions */
+  ],
+  "onExit": [
+    /* actions */
+  ],
+  "transitions": [
+    /* transitions */
+  ]
 }
 ```
 
@@ -168,32 +178,32 @@ Tools → EAIS → EAIS AI Editor
 
 The Visual AI Editor provides a node-based interface using Unreal's SGraphEditor.
 
-| Class | Description |
-|-------|-------------|
-| `UEAIS_GraphNode` | State node in graph |
-| `UEAIS_GraphSchema` | Connection rules |
-| `SEAIS_GraphEditor` | Main editor widget |
-| `FEAISJsonEditorParser` | JSON parsing |
+| Class                   | Description         |
+| ----------------------- | ------------------- |
+| `UEAIS_GraphNode`       | State node in graph |
+| `UEAIS_GraphSchema`     | Connection rules    |
+| `SEAIS_GraphEditor`     | Main editor widget  |
+| `FEAISJsonEditorParser` | JSON parsing        |
 
 ## 🧪 Console Commands
 
-| Command | Description |
-|---------|-------------|
-| `EAIS.SpawnBot <Team> <Profile>` | Spawn AI bot |
-| `EAIS.Debug <0\|1>` | Toggle debug mode |
-| `EAIS.InjectEvent <Name> <Event>` | Inject event |
-| `EAIS.ListActions` | List registered actions |
+| Command                           | Description             |
+| --------------------------------- | ----------------------- |
+| `EAIS.SpawnBot <Team> <Profile>`  | Spawn AI bot            |
+| `EAIS.Debug <0\|1>`               | Toggle debug mode       |
+| `EAIS.InjectEvent <Name> <Event>` | Inject event            |
+| `EAIS.ListActions`                | List registered actions |
 
 ## ✅ Validation Scripts
 
 ```powershell
 # Full validation pipeline
-.\Scripts\TestEAIS.ps1 -VerboseOutput
+.\DevTools\scripts\RunEAISTests.ps1 -VerboseOutput
 
 # Individual scripts
-.\Scripts\ValidateAIJson.ps1
-.\Scripts\ValidateGraph.ps1
-.\Scripts\VerifyPlanConsistency.ps1
+.\DevTools\scripts\ValidateAIJson.ps1
+.\DevTools\scripts\ValidateGraph.ps1
+.\DevTools\scripts\VerifyPlanConsistency.ps1
 ```
 
 ## 🔌 Game Integration
@@ -205,23 +215,29 @@ Your game pawn should implement `IEAIS_TargetProvider` for target resolution:
 ```cpp
 class AMyCharacter : public ACharacter, public IEAIS_TargetProvider
 {
-    virtual FVector ResolveTargetLocation_Implementation(const FString& TargetName) const override
+    virtual bool EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const override
     {
         // Resolve game-specific targets
-        if (TargetName == "enemy") return GetNearestEnemy()->GetActorLocation();
-        return FVector::ZeroVector;
+        if (TargetId == "enemy")
+        {
+            OutLocation = GetNearestEnemy()->GetActorLocation();
+            return true;
+        }
+        return false;
     }
 };
 ```
 
 ## 🏗️ Built-in Actions
 
-| Action | Description | Parameters |
-|--------|-------------|------------|
-| `MoveTo` | Navigate to target | `target`, `speed` |
-| `Wait` | Passive wait | `seconds` |
-| `Log` | Debug logging | `message` |
-| `SetBlackboardKey` | Update blackboard | `key`, `value` |
+| Action             | Description          | Parameters          |
+| ------------------ | -------------------- | ------------------- |
+| `MoveTo`           | Navigate to target   | `target`, `speed`   |
+| `Wait`             | Passive wait         | `seconds`           |
+| `Log`              | Debug logging        | `message`           |
+| `SetBlackboardKey` | Update blackboard    | `key`, `value`      |
+| `Execute`          | Bridge to game logic | `target` (ActionId) |
+| `LookAround`       | Reset AI focus       | none                |
 
 ## 🔧 Custom Actions
 
@@ -235,26 +251,26 @@ public:
     {
         // Your logic here
     }
-    
+
     virtual FString GetActionName() const override { return TEXT("MyAction"); }
 };
 ```
 
 ## 📚 Documentation
 
-| Document | Description |
-|----------|-------------|
-| [GUIDE.md](GUIDE.md) | Developer guide |
-| [Docs/Architecture.md](Docs/Architecture.md) | System architecture |
-| [Docs/JSONSchema.md](Docs/JSONSchema.md) | JSON schema reference |
-| [Docs/VisualEditor.md](Docs/VisualEditor.md) | Visual editor guide |
+| Document                                     | Description           |
+| -------------------------------------------- | --------------------- |
+| [GUIDE.md](GUIDE.md)                         | Developer guide       |
+| [Docs/Architecture.md](Docs/Architecture.md) | System architecture   |
+| [Docs/JSONSchema.md](Docs/JSONSchema.md)     | JSON schema reference |
+| [Docs/VisualEditor.md](Docs/VisualEditor.md) | Visual editor guide   |
 
 ## 🔗 Optional Dependencies
 
-| Plugin | Purpose |
-|--------|---------|
+| Plugin | Purpose                              |
+| ------ | ------------------------------------ |
 | P_MEIS | Input injection (AI presses buttons) |
-| P_MWCS | Editor Utility Widget generation |
+| P_MWCS | Editor Utility Widget generation     |
 
 ## 📄 License
 
@@ -262,4 +278,4 @@ MIT License - Punal Manalan
 
 ---
 
-*A modular, game-agnostic AI system for Unreal Engine 5*
+_A modular, game-agnostic AI system for Unreal Engine 5_

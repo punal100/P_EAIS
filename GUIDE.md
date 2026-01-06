@@ -2,8 +2,7 @@
 
 This guide covers the implementation details, extension points, and workflow for the **Enhanced AI System**.
 
-> [!WARNING]
-> **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
+> [!WARNING] > **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
 
 ## Table of Contents
 
@@ -16,9 +15,9 @@ This guide covers the implementation details, extension points, and workflow for
 7. [Custom Actions](#7-custom-actions)
 8. [Blackboard System](#8-blackboard-system)
 9. [Input Injection](#9-input-injection)
-10. [Debugging](#10-debugging)
-11. [CI/Automation](#11-ciautomation)
-12. [Best Practices](#12-best-practices)
+10. [CI/Automation](#11-ciautomation)
+11. [Best Practices](#12-best-practices)
+12. [Target Resolution & Action Execution](#13-target-resolution--action-execution)
 
 ---
 
@@ -53,6 +52,7 @@ AIComp->StartAI();
 EAIS operates as a **Deterministic, Server-Authoritative Hybrid FSM/BT Runtime**.
 
 **Rules:**
+
 1. EAIS ticks ONLY on the Server
 2. EAIS NEVER directly modifies gameplay state
 3. EAIS ONLY injects intent via actions
@@ -95,10 +95,10 @@ UAIBehaviour (PrimaryDataAsset)
 
 ### File Types
 
-| Type | Extension | Location |
-|------|-----------|----------|
+| Type    | Extension        | Location              |
+| ------- | ---------------- | --------------------- |
 | Runtime | `*.runtime.json` | `Content/AIProfiles/` |
-| Editor | `*.editor.json` | `Editor/AI/` |
+| Editor  | `*.editor.json`  | `Editor/AI/`          |
 
 ### Runtime JSON Structure
 
@@ -148,33 +148,33 @@ UAIBehaviour (PrimaryDataAsset)
 
 ### Condition Types
 
-| Type | Description | Required Fields |
-|------|-------------|-----------------|
+| Type         | Description            | Required Fields                   |
+| ------------ | ---------------------- | --------------------------------- |
 | `Blackboard` | Check blackboard value | `keyOrName`, `op`, `compareValue` |
-| `Event` | Check for event | `keyOrName` |
-| `Timer` | Check elapsed time | `seconds` |
-| `Distance` | Check distance | `target`, `op`, `compareValue` |
+| `Event`      | Check for event        | `keyOrName`                       |
+| `Timer`      | Check elapsed time     | `seconds`                         |
+| `Distance`   | Check distance         | `target`, `op`, `compareValue`    |
 
 ### Operators
 
-| Operator | Description |
-|----------|-------------|
-| `Equal` | Values equal |
-| `NotEqual` | Values differ |
-| `GreaterThan` | Left > Right |
-| `LessThan` | Left < Right |
+| Operator         | Description   |
+| ---------------- | ------------- |
+| `Equal`          | Values equal  |
+| `NotEqual`       | Values differ |
+| `GreaterThan`    | Left > Right  |
+| `LessThan`       | Left < Right  |
 | `GreaterOrEqual` | Left >= Right |
-| `LessOrEqual` | Left <= Right |
+| `LessOrEqual`    | Left <= Right |
 
 ### Value Types
 
-| Type | Example rawValue |
-|------|------------------|
-| `Bool` | `"true"`, `"false"` |
-| `Int` | `"42"` |
-| `Float` | `"3.14"` |
-| `String` | `"hello"` |
-| `Vector` | `"100,200,300"` |
+| Type     | Example rawValue    |
+| -------- | ------------------- |
+| `Bool`   | `"true"`, `"false"` |
+| `Int`    | `"42"`              |
+| `Float`  | `"3.14"`            |
+| `String` | `"hello"`           |
+| `Vector` | `"100,200,300"`     |
 
 ---
 
@@ -196,7 +196,10 @@ Create `Content/AIProfiles/MyAI.runtime.json`:
       "id": "Idle",
       "terminal": false,
       "onEnter": [
-        { "actionName": "Log", "paramsJson": "{ \"message\": \"Entering Idle\" }" }
+        {
+          "actionName": "Log",
+          "paramsJson": "{ \"message\": \"Entering Idle\" }"
+        }
       ],
       "onTick": [],
       "onExit": [],
@@ -237,7 +240,7 @@ Create `Content/AIProfiles/MyAI.runtime.json`:
 ### Step 2: Validate
 
 ```powershell
-.\Scripts\ValidateAIJson.ps1
+.\DevTools\scripts\ValidateAIJson.ps1
 ```
 
 ### Step 3: Use in Code
@@ -301,12 +304,12 @@ Tools → EAIS → EAIS AI Editor
 
 ### Key Classes
 
-| Class | Description |
-|-------|-------------|
-| `UEAIS_GraphNode` | State node |
-| `UEAIS_GraphSchema` | Connection rules |
-| `SEAIS_GraphEditor` | Editor widget |
-| `FEAISJsonEditorParser` | JSON parsing |
+| Class                   | Description      |
+| ----------------------- | ---------------- |
+| `UEAIS_GraphNode`       | State node       |
+| `UEAIS_GraphSchema`     | Connection rules |
+| `SEAIS_GraphEditor`     | Editor widget    |
+| `FEAISJsonEditorParser` | JSON parsing     |
 
 ### Editor JSON Format
 
@@ -315,7 +318,9 @@ Tools → EAIS → EAIS AI Editor
   "schemaVersion": 1,
   "name": "ProfileName",
   "initialState": "Idle",
-  "states": [ /* same as runtime */ ],
+  "states": [
+    /* same as runtime */
+  ],
   "editor": {
     "nodes": {
       "Idle": { "pos": { "x": 100, "y": 100 } }
@@ -336,21 +341,21 @@ UCLASS()
 class UMyAction : public UAIAction
 {
     GENERATED_BODY()
-    
+
 public:
     virtual void Execute_Implementation(UAIComponent* Owner, const FAIActionParams& Params) override
     {
         APawn* Pawn = Owner->GetOwnerPawn();
-        
+
         FString Target = Params.Target;
         float Power = Params.Power;
-        
+
         // Your logic
     }
-    
-    virtual FString GetActionName() const override 
-    { 
-        return TEXT("MyAction"); 
+
+    virtual FString GetActionName() const override
+    {
+        return TEXT("MyAction");
     }
 };
 ```
@@ -437,17 +442,18 @@ if (PC)
 
 ### Console Commands
 
-| Command | Description |
-|---------|-------------|
-| `EAIS.Debug 1` | Enable debug |
-| `EAIS.Debug 0` | Disable debug |
-| `EAIS.SpawnBot <Team> <Profile>` | Spawn AI |
-| `EAIS.InjectEvent * <Event>` | Inject event |
-| `EAIS.ListActions` | List actions |
+| Command                          | Description   |
+| -------------------------------- | ------------- |
+| `EAIS.Debug 1`                   | Enable debug  |
+| `EAIS.Debug 0`                   | Disable debug |
+| `EAIS.SpawnBot <Team> <Profile>` | Spawn AI      |
+| `EAIS.InjectEvent * <Event>`     | Inject event  |
+| `EAIS.ListActions`               | List actions  |
 
 ### Debug Overlay
 
 Shows:
+
 - Current state
 - Elapsed time
 - Blackboard values
@@ -459,17 +465,17 @@ Shows:
 
 ### Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `TestEAIS.ps1` | Full validation |
-| `ValidateAIJson.ps1` | JSON schema |
-| `ValidateGraph.ps1` | Graph structure |
-| `VerifyPlanConsistency.ps1` | Code patterns |
+| Script                      | Purpose         |
+| --------------------------- | --------------- |
+| `RunEAISTests.ps1`          | Full validation |
+| `ValidateAIJson.ps1`        | JSON validation |
+| `ValidateGraph.ps1`         | Graph structure |
+| `VerifyPlanConsistency.ps1` | Code patterns   |
 
 ### Running
 
 ```powershell
-.\Scripts\TestEAIS.ps1 -VerboseOutput
+.\DevTools\scripts\RunEAISTests.ps1 -VerboseOutput
 ```
 
 ### CI Failure Conditions
@@ -509,6 +515,182 @@ Shows:
 
 ---
 
+## 13. Target Resolution & Action Execution
+
+To keep AI profiles game-agnostic, EAIS uses interfaces to communicate with gameplay code.
+
+### 13.1 IEAIS_TargetProvider
+
+Interface for resolving logical target names (e.g., "Ball", "Goal") into world coordinates or actor references.
+
+**Signature:**
+
+```cpp
+UINTERFACE(BlueprintType)
+class UEAIS_TargetProvider : public UInterface { ... };
+
+class IEAIS_TargetProvider
+{
+    virtual bool EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const;
+    virtual bool EAIS_GetTargetActor_Implementation(FName TargetId, AActor*& OutActor) const;
+    virtual int32 EAIS_GetTeamId_Implementation() const;
+    virtual FString EAIS_GetRole_Implementation() const;
+};
+```
+
+**Usage:**
+The `MoveTo` and `AimAt` actions will first try to resolve their target parameter via this interface if the Pawn implements it.
+
+### 13.2 IEAIS_ActionExecutor
+
+Interface for executing gameplay-specific actions (e.g., "Shoot", "Pass").
+
+**Signature:**
+
+```cpp
+UINTERFACE(BlueprintType)
+class UEAIS_ActionExecutor : public UInterface { ... };
+
+class IEAIS_ActionExecutor
+{
+    virtual FEAIS_ActionResult EAIS_ExecuteAction_Implementation(const FName ActionId, const FString& ParamsJson);
+};
+```
+
+**Usage:**
+The `Execute` action in EAIS acts as a bridge. It looks for this interface on the Pawn or its components and forwards the logical `ActionId` and JSON parameters.
+
+---
+
+## 14. Mini Football Integration
+
+This section documents the `P_MiniFootball`-specific sensors and actions available when using EAIS with the Mini Football game.
+
+### 14.1 Blackboard Keys (Sensors)
+
+The following keys are populated by `AMF_PlayerCharacter::SyncBlackboard()` every tick:
+
+| Key                       | Type   | Description                                     |
+| ------------------------- | ------ | ----------------------------------------------- |
+| `HasBall`                 | Bool   | True if this character possesses the ball       |
+| `TeamHasBall`             | Bool   | True if a teammate has the ball                 |
+| `OpponentHasBall`         | Bool   | True if an opponent has the ball                |
+| `IsBallLoose`             | Bool   | True if no one possesses the ball               |
+| `IsInDanger`              | Bool   | True if an opponent is within 200 units         |
+| `HasClearShot`            | Bool   | True if no enemies are in the shot cone to goal |
+| `DistToBall`              | Float  | Distance to the ball                            |
+| `DistToOpponentGoal`      | Float  | Distance to opponent's goal                     |
+| `DistToHome`              | Float  | Distance to formation home position             |
+| `DistToNearestOpponent`   | Float  | Distance to closest enemy                       |
+| `BallPosition`            | Vector | Current ball world location                     |
+| `MyPosition`              | Vector | Current character location                      |
+| `OpponentGoalPosition`    | Vector | Opponent goal location                          |
+| `HomePosition`            | Vector | Formation home position                         |
+| `NearestOpponentPosition` | Vector | Closest enemy location                          |
+
+### 14.2 Available Targets
+
+Targets implemented in `IEAIS_TargetProvider`:
+
+| Target Name       | Returns              |
+| ----------------- | -------------------- |
+| `Ball`            | Ball actor/location  |
+| `Goal_Opponent`   | Opponent's goal      |
+| `Goal_Self`       | Own team's goal      |
+| `Home`            | Formation position   |
+| `BallCarrier`     | Player with ball     |
+| `NearestOpponent` | Closest enemy player |
+
+### 14.3 Game Actions
+
+Actions handled by `UMF_EAISActionExecutorComponent`:
+
+| Action ID   | Parameters               | Description                   |
+| ----------- | ------------------------ | ----------------------------- |
+| `MF.Shoot`  | `{"power": 0.0-1.0}`     | Shoot towards aimed direction |
+| `MF.Pass`   | None                     | Pass ball forward             |
+| `MF.Tackle` | None                     | Execute tackle animation      |
+| `MF.Sprint` | `{"active": true/false}` | Toggle sprint mode            |
+| `MF.Face`   | `{"target": "Ball"}`     | Rotate to face target         |
+| `MF.Mark`   | None                     | Follow nearest opponent       |
+
+### 14.4 Example: Striker Profile Structure
+
+```json
+{
+  "name": "Striker",
+  "initialState": "Main",
+  "states": [
+    {
+      "id": "Main",
+      "transitions": [
+        {
+          "to": "Tackle",
+          "priority": 1000,
+          "condition": {
+            "keyOrName": "OpponentHasBall",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "SafetyPass",
+          "priority": 900,
+          "condition": {
+            "keyOrName": "IsInDanger",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "Shoot",
+          "priority": 800,
+          "condition": {
+            "keyOrName": "HasClearShot",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "ChaseBall",
+          "priority": 700,
+          "condition": {
+            "keyOrName": "IsBallLoose",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "DribbleToGoal",
+          "priority": 600,
+          "condition": {
+            "keyOrName": "HasBall",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "Support",
+          "priority": 500,
+          "condition": {
+            "keyOrName": "TeamHasBall",
+            "op": "Equal",
+            "compareValue": true
+          }
+        },
+        {
+          "to": "ReturnHome",
+          "priority": 100,
+          "condition": { "type": "Timer", "seconds": 0.0 }
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
 ## Further Reading
 
 - [README.md](README.md) - Overview
@@ -518,4 +700,4 @@ Shows:
 
 ---
 
-*P_EAIS - A modular, game-agnostic AI system*
+_P_EAIS - A modular, game-agnostic AI system_

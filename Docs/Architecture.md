@@ -47,7 +47,10 @@ P_EAIS/
 │
 ├── Content/AIProfiles/   # Runtime JSON profiles
 ├── Editor/AI/            # Editor JSON (with layout)
-└── Scripts/              # Validation scripts
+└── DevTools/             # CI, output, and scripts
+    ├── ci/               # CI configuration
+    ├── output/           # Build/test output
+    └── scripts/          # Validation scripts
 ```
 
 ## Data Flow
