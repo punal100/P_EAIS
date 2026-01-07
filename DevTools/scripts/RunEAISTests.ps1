@@ -40,9 +40,9 @@ Enable verbose output
 param(
     [string]$ProjectPath = $null,
     [string]$UEPath = $null,
-    [switch]$SkipBuild,
+    [bool]$SkipBuild = $false,
     [switch]$RunTests,
-    [switch]$RegenerateEUW,
+    [bool]$RegenerateEUW = $true,
     [int]$Timeout = 300,
     [switch]$VerboseOutput
 )
@@ -93,6 +93,39 @@ function Find-ProjectFile {
         $searchPath = Split-Path -Parent $searchPath
     }
     return $null
+}
+
+function Get-UeAutomationExitCodeFromLogs {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$LogPaths
+    )
+
+    $pattern = "\*\*\*\* TEST COMPLETE\. EXIT CODE: (\d+) \*\*\*\*"
+    $matches = @()
+
+    foreach ($path in $LogPaths) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+
+        try {
+            $found = Select-String -Path $path -Pattern $pattern -AllMatches -ErrorAction SilentlyContinue
+            if ($found) {
+                $matches += $found
+            }
+        }
+        catch {
+            # Ignore log read failures; caller will fall back to process exit code.
+        }
+    }
+
+    if (-not $matches -or $matches.Count -eq 0) {
+        return $null
+    }
+
+    $last = $matches[$matches.Count - 1]
+    $value = $last.Matches[0].Groups[1].Value
+    return [int]$value
 }
 
 # ============================================
@@ -176,8 +209,9 @@ if (-not $SkipBuild) {
     Write-Host ""
 }
 else {
-    Write-Log "Skipping build step (-SkipBuild)" -Level Warning
-    $testResults += "Build: SKIP"
+    Write-Log "Build step was skipped (-SkipBuild), but skipping Build is not allowed for this runner." -Level Error
+    $testResults += "Build: FAIL (SKIPPED)"
+    $allPassed = $false
     Write-Host ""
 }
 
@@ -249,6 +283,13 @@ if ($RunTests) {
         $allPassed = $false
     }
     else {
+        $outputDir = Join-Path $DevToolsRoot "output"
+        if (-not (Test-Path $outputDir)) {
+            New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+        }
+        $testStdout = Join-Path $outputDir "eais_automation_stdout.log"
+        $testStderr = Join-Path $outputDir "eais_automation_stderr.log"
+
         Write-Log "Running EAIS automation tests..."
         $testArgs = @(
             "`"$($ProjectFile.FullName)`"",
@@ -256,32 +297,47 @@ if ($RunTests) {
             "-ExecCmds=`"Automation RunTests EAIS; Quit`"",
             "-unattended", "-nullrhi", "-nop4",
             "-testexit=`"Automation Test Queue Empty`"",
-            "-stdout", "-FullStdOutLogOutput"
+            "-stdout", "-FullStdOutLogOutput", "-UTF8Output"
         )
 
-        $outputDir = Join-Path $DevToolsRoot "output"
-        if (-not (Test-Path $outputDir)) {
-            New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
-        }
-        $testStdout = Join-Path $outputDir "eais_tests_stdout.log"
-        $testStderr = Join-Path $outputDir "eais_tests_stderr.log"
-
         $testProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList $testArgs -NoNewWindow -PassThru -RedirectStandardOutput $testStdout -RedirectStandardError $testStderr
-        $waited = $testProcess | Wait-Process -Timeout $Timeout -ErrorAction SilentlyContinue
-        if (-not $waited) {
+        $timeoutMs = [Math]::Max(1, $Timeout) * 1000
+        $exited = $testProcess.WaitForExit($timeoutMs)
+
+        if (-not $exited) {
             Write-Log "Automation tests timed out after ${Timeout}s; terminating UnrealEditor-Cmd" -Level Error
             Stop-Process -Id $testProcess.Id -Force -ErrorAction SilentlyContinue
+            Write-Log "Stdout: $testStdout" -Level Warning
+            Write-Log "Stderr: $testStderr" -Level Warning
             $testResults += "AutomationTests: FAIL"
             $allPassed = $false
-        }
-        elseif ($testProcess.ExitCode -eq 0) {
-            Write-Log "Automation Tests PASSED" -Level Success
-            $testResults += "AutomationTests: PASS"
         }
         else {
-            Write-Log "Automation Tests FAILED" -Level Error
-            $testResults += "AutomationTests: FAIL"
-            $allPassed = $false
+            $ueExitCode = Get-UeAutomationExitCodeFromLogs -LogPaths @($testStdout, $testStderr)
+            if ($null -ne $ueExitCode) {
+                if ($ueExitCode -eq 0) {
+                    Write-Log "Automation Tests PASSED (UE reported exit code 0)" -Level Success
+                    $testResults += "AutomationTests: PASS"
+                }
+                else {
+                    Write-Log "Automation Tests FAILED (UE reported exit code $ueExitCode)" -Level Error
+                    Write-Log "Stdout: $testStdout" -Level Warning
+                    Write-Log "Stderr: $testStderr" -Level Warning
+                    $testResults += "AutomationTests: FAIL"
+                    $allPassed = $false
+                }
+            }
+            elseif ($testProcess.ExitCode -eq 0) {
+                Write-Log "Automation Tests PASSED" -Level Success
+                $testResults += "AutomationTests: PASS"
+            }
+            else {
+                Write-Log "Automation Tests FAILED" -Level Error
+                Write-Log "Stdout: $testStdout" -Level Warning
+                Write-Log "Stderr: $testStderr" -Level Warning
+                $testResults += "AutomationTests: FAIL"
+                $allPassed = $false
+            }
         }
     }
     Write-Host ""
@@ -292,8 +348,6 @@ else {
     Write-Host ""
 }
 
-# ----------------------------------------
-# ----------------------------------------
 # Step 5: Regenerate EUW (optional)
 # ----------------------------------------
 if ($RegenerateEUW) {
@@ -311,7 +365,8 @@ if ($RegenerateEUW) {
             "`"$($ProjectFile.FullName)`"",
             "-run=EAIS_GenerateEUW",
             "-unattended", "-nop4", "-NullRHI",
-            "-stdout", "-FullStdOutLogOutput"
+            "-NoSplash",
+            "-stdout", "-FullStdOutLogOutput", "-UTF8Output"
         )
 
         $outputDir = Join-Path $DevToolsRoot "output"
@@ -323,28 +378,54 @@ if ($RegenerateEUW) {
 
         Write-Log "Running EAIS_GenerateEUW commandlet..."
         $euwProcess = Start-Process -FilePath $UEEditorCmd -ArgumentList $euwArgs -NoNewWindow -PassThru -RedirectStandardOutput $euwStdout -RedirectStandardError $euwStderr
-        $waited = $euwProcess | Wait-Process -Timeout $Timeout -ErrorAction SilentlyContinue
-        if (-not $waited) {
+        $timeoutMs = [Math]::Max(1, $Timeout) * 1000
+        $exited = $euwProcess.WaitForExit($timeoutMs)
+
+        if (-not $exited) {
             Write-Log "EUW regeneration timed out after ${Timeout}s; terminating UnrealEditor-Cmd" -Level Error
             Stop-Process -Id $euwProcess.Id -Force -ErrorAction SilentlyContinue
+            Write-Log "Stdout: $euwStdout" -Level Warning
+            Write-Log "Stderr: $euwStderr" -Level Warning
             $testResults += "EUWRegenerate: FAIL"
             $allPassed = $false
-        }
-        elseif ($euwProcess.ExitCode -eq 0) {
-            Write-Log "EUW regeneration PASSED" -Level Success
-            $testResults += "EUWRegenerate: PASS"
         }
         else {
-            Write-Log "EUW regeneration FAILED" -Level Error
-            $testResults += "EUWRegenerate: FAIL"
-            $allPassed = $false
+            # NOTE: In this environment, Process.ExitCode is not reliably populated when using
+            # $process.WaitForExit(timeout) (it may be $null even for success). Use log evidence.
+            Start-Sleep -Milliseconds 250
+
+            $stdoutText = ""
+            if (Test-Path $euwStdout) {
+                try {
+                    $stdoutText = Get-Content -Path $euwStdout -Raw -ErrorAction SilentlyContinue
+                }
+                catch {
+                    $stdoutText = ""
+                }
+            }
+
+            $hasSuccessMarker = $stdoutText -match "SUCCESS: EAIS EUW generated/repaired successfully!"
+            $hasZeroErrorsSummary = $stdoutText -match "Errors=0\s+Warnings=0"
+
+            if ($hasSuccessMarker -or $hasZeroErrorsSummary) {
+                Write-Log "EUW regeneration PASSED (log evidence)" -Level Success
+                $testResults += "EUWRegenerate: PASS"
+            }
+            else {
+                Write-Log "EUW regeneration FAILED (no success evidence in logs)" -Level Error
+                Write-Log "Stdout: $euwStdout" -Level Warning
+                Write-Log "Stderr: $euwStderr" -Level Warning
+                $testResults += "EUWRegenerate: FAIL"
+                $allPassed = $false
+            }
         }
     }
     Write-Host ""
 }
 else {
-    Write-Log "Skipping EUW regeneration (use -RegenerateEUW to enable)" -Level Warning
-    $testResults += "EUWRegenerate: SKIP"
+    Write-Log "EUW regeneration was disabled (-RegenerateEUW:$false), but skipping EUWRegenerate is not allowed for this runner." -Level Error
+    $testResults += "EUWRegenerate: FAIL (SKIPPED)"
+    $allPassed = $false
     Write-Host ""
 }
 

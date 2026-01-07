@@ -17,7 +17,7 @@
 #>
 
 param(
-    [string]$SourceDir = "$PSScriptRoot/../Source"
+    [string]$SourceDir = "$PSScriptRoot/../../Source"
 )
 
 $ErrorActionPreference = "Stop"
@@ -79,7 +79,7 @@ if (Test-Path $SourceDir) {
     }
 }
 else {
-    Write-Host "Source directory not found: $SourceDir" -ForegroundColor Yellow
+    Fail "Source directory not found: $SourceDir"
 }
 
 # Check JSON profiles
