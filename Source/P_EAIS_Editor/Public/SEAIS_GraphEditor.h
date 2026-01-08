@@ -5,6 +5,7 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/Input/STextComboBox.h"
 #include "GraphEditor.h"
 
 class UEdGraph;
@@ -86,4 +87,38 @@ protected:
     
     /** Import from FAIEditorGraph */
     void ImportFromEditorGraph(const FAIEditorGraph& InGraph);
+    
+    // ========================================
+    // Profile Dropdown Support
+    // ========================================
+    
+    /** Profile dropdown combo box */
+    TSharedPtr<STextComboBox> ProfileDropdown;
+    
+    /** Available profile options */
+    TArray<TSharedPtr<FString>> ProfileOptions;
+    
+    /** Currently selected profile name */
+    FString SelectedProfileName;
+    
+    /** Create the toolbar with profile dropdown */
+    TSharedRef<SWidget> CreateToolbar();
+    
+    /** Get editor profiles directory (searches multiple locations) */
+    FString GetEditorProfilesDirectory() const;
+    
+    /** Get runtime profiles directory (searches multiple locations) */
+    FString GetProfilesDirectory() const;
+    
+    /** Refresh the profile dropdown options */
+    void RefreshProfileList();
+    
+    /** Handle profile selection change */
+    void OnProfileSelected(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo);
+    
+    /** Load the currently selected profile */
+    void OnLoadProfileClicked();
+    
+    /** Refresh button clicked */
+    void OnRefreshClicked();
 };

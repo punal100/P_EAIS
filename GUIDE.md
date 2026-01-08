@@ -562,130 +562,251 @@ The `Execute` action in EAIS acts as a bridge. It looks for this interface on th
 
 ---
 
-## 14. Mini Football Integration
+## 14. Game Integration Patterns
 
-This section documents the `P_MiniFootball`-specific sensors and actions available when using EAIS with the Mini Football game.
+This section provides reusable patterns for integrating EAIS into ANY game project.
 
-### 14.1 Blackboard Keys (Sensors)
+### 14.1 Sensor Pattern (Blackboard Sync)
 
-The following keys are populated by `AMF_PlayerCharacter::SyncBlackboard()` every tick:
+Your game character should periodically sync game state to the AI's blackboard:
 
-| Key                       | Type   | Description                                     |
-| ------------------------- | ------ | ----------------------------------------------- |
-| `HasBall`                 | Bool   | True if this character possesses the ball       |
-| `TeamHasBall`             | Bool   | True if a teammate has the ball                 |
-| `OpponentHasBall`         | Bool   | True if an opponent has the ball                |
-| `IsBallLoose`             | Bool   | True if no one possesses the ball               |
-| `IsInDanger`              | Bool   | True if an opponent is within 200 units         |
-| `HasClearShot`            | Bool   | True if no enemies are in the shot cone to goal |
-| `DistToBall`              | Float  | Distance to the ball                            |
-| `DistToOpponentGoal`      | Float  | Distance to opponent's goal                     |
-| `DistToHome`              | Float  | Distance to formation home position             |
-| `DistToNearestOpponent`   | Float  | Distance to closest enemy                       |
-| `BallPosition`            | Vector | Current ball world location                     |
-| `MyPosition`              | Vector | Current character location                      |
-| `OpponentGoalPosition`    | Vector | Opponent goal location                          |
-| `HomePosition`            | Vector | Formation home position                         |
-| `NearestOpponentPosition` | Vector | Closest enemy location                          |
-
-### 14.2 Available Targets
-
-Targets implemented in `IEAIS_TargetProvider`:
-
-| Target Name       | Returns              |
-| ----------------- | -------------------- |
-| `Ball`            | Ball actor/location  |
-| `Goal_Opponent`   | Opponent's goal      |
-| `Goal_Self`       | Own team's goal      |
-| `Home`            | Formation position   |
-| `BallCarrier`     | Player with ball     |
-| `NearestOpponent` | Closest enemy player |
-
-### 14.3 Game Actions
-
-Actions handled by `UMF_EAISActionExecutorComponent`:
-
-| Action ID   | Parameters               | Description                   |
-| ----------- | ------------------------ | ----------------------------- |
-| `MF.Shoot`  | `{"power": 0.0-1.0}`     | Shoot towards aimed direction |
-| `MF.Pass`   | None                     | Pass ball forward             |
-| `MF.Tackle` | None                     | Execute tackle animation      |
-| `MF.Sprint` | `{"active": true/false}` | Toggle sprint mode            |
-| `MF.Face`   | `{"target": "Ball"}`     | Rotate to face target         |
-| `MF.Mark`   | None                     | Follow nearest opponent       |
-
-### 14.4 Example: Striker Profile Structure
-
-```json
+```cpp
+void AMyCharacter::Tick(float DeltaTime)
 {
-  "name": "Striker",
-  "initialState": "Main",
-  "states": [
+    Super::Tick(DeltaTime);
+    SyncBlackboard();
+}
+
+void AMyCharacter::SyncBlackboard()
+{
+    if (!AIComponent) return;
+    
+    // Sync health
+    AIComponent->SetBlackboardFloat(TEXT("Health"), CurrentHealth);
+    AIComponent->SetBlackboardFloat(TEXT("HealthPercent"), (CurrentHealth / MaxHealth) * 100.f);
+    
+    // Sync combat state
+    AIComponent->SetBlackboardBool(TEXT("IsInCombat"), bIsInCombat);
+    AIComponent->SetBlackboardInt(TEXT("AmmoCount"), CurrentAmmo);
+    
+    // Sync detection
+    if (AActor* Enemy = GetNearestEnemy())
     {
-      "id": "Main",
-      "transitions": [
-        {
-          "to": "Tackle",
-          "priority": 1000,
-          "condition": {
-            "keyOrName": "OpponentHasBall",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "SafetyPass",
-          "priority": 900,
-          "condition": {
-            "keyOrName": "IsInDanger",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "Shoot",
-          "priority": 800,
-          "condition": {
-            "keyOrName": "HasClearShot",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "ChaseBall",
-          "priority": 700,
-          "condition": {
-            "keyOrName": "IsBallLoose",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "DribbleToGoal",
-          "priority": 600,
-          "condition": {
-            "keyOrName": "HasBall",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "Support",
-          "priority": 500,
-          "condition": {
-            "keyOrName": "TeamHasBall",
-            "op": "Equal",
-            "compareValue": true
-          }
-        },
-        {
-          "to": "ReturnHome",
-          "priority": 100,
-          "condition": { "type": "Timer", "seconds": 0.0 }
-        }
-      ]
+        AIComponent->SetBlackboardFloat(TEXT("DistToEnemy"), 
+            FVector::Dist(GetActorLocation(), Enemy->GetActorLocation()));
+        AIComponent->SetBlackboardVector(TEXT("EnemyPosition"), 
+            Enemy->GetActorLocation());
+        AIComponent->SetBlackboardBool(TEXT("EnemyVisible"), true);
     }
-  ]
+    else
+    {
+        AIComponent->SetBlackboardBool(TEXT("EnemyVisible"), false);
+    }
+    
+    // Sync position
+    AIComponent->SetBlackboardVector(TEXT("MyPosition"), GetActorLocation());
+}
+```
+
+### 14.2 Target Resolution Pattern
+
+Implement `IEAIS_TargetProvider` to convert logical target names to world positions:
+
+```cpp
+bool AMyCharacter::EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const
+{
+    FString Target = TargetId.ToString();
+    
+    // Static targets
+    if (Target == TEXT("Home") || Target == TEXT("SpawnPoint"))
+    {
+        OutLocation = SpawnLocation;
+        return true;
+    }
+    
+    // Dynamic targets
+    if (Target == TEXT("NearestEnemy"))
+    {
+        if (AActor* Enemy = GetNearestEnemy())
+        {
+            OutLocation = Enemy->GetActorLocation();
+            return true;
+        }
+        return false;
+    }
+    
+    if (Target == TEXT("NearestCover"))
+    {
+        if (AActor* Cover = FindNearestCover())
+        {
+            OutLocation = Cover->GetActorLocation();
+            return true;
+        }
+        return false;
+    }
+    
+    // Blackboard vector targets
+    if (Target == TEXT("EnemyPosition") || Target == TEXT("TargetPosition"))
+    {
+        if (AIComponent)
+        {
+            OutLocation = AIComponent->GetBlackboardVector(Target);
+            return true;
+        }
+    }
+    
+    return false;
+}
+```
+
+### 14.3 Action Execution Pattern
+
+For game-specific actions, implement `IEAIS_ActionExecutor`:
+
+```cpp
+FEAIS_ActionResult UMyActionExecutor::EAIS_ExecuteAction_Implementation(
+    const FName ActionId, 
+    const FString& ParamsJson)
+{
+    FEAIS_ActionResult Result;
+    Result.bSuccess = false;
+    
+    // Parse parameters
+    TSharedPtr<FJsonObject> Params = ParseJsonParams(ParamsJson);
+    FString ActionStr = ActionId.ToString();
+    
+    if (ActionStr == TEXT("Attack"))
+    {
+        float Power = 1.0f;
+        if (Params.IsValid()) Params->TryGetNumberField(TEXT("power"), Power);
+        PerformAttack(Power);
+        Result.bSuccess = true;
+    }
+    else if (ActionStr == TEXT("Reload"))
+    {
+        if (CanReload())
+        {
+            StartReload();
+            Result.bSuccess = true;
+        }
+    }
+    else if (ActionStr == TEXT("UseAbility"))
+    {
+        int32 AbilityIndex = 0;
+        if (Params.IsValid()) Params->TryGetNumberField(TEXT("index"), AbilityIndex);
+        Result.bSuccess = ActivateAbility(AbilityIndex);
+    }
+    else if (ActionStr == TEXT("PlayAnimation"))
+    {
+        FString AnimName;
+        if (Params.IsValid() && Params->TryGetStringField(TEXT("name"), AnimName))
+        {
+            PlayAnimationByName(FName(*AnimName));
+            Result.bSuccess = true;
+        }
+    }
+    
+    return Result;
+}
+```
+
+### 14.4 Event Injection Pattern
+
+Inject events from game systems to trigger AI state transitions:
+
+```cpp
+// From detection system
+void AMyCharacter::OnEnemyDetected(AActor* Enemy)
+{
+    if (AIComponent)
+    {
+        AIComponent->EnqueueSimpleEvent(TEXT("EnemyDetected"));
+        AIComponent->SetBlackboardVector(TEXT("LastKnownEnemyPos"), Enemy->GetActorLocation());
+    }
+}
+
+// From damage system
+void AMyCharacter::OnDamageReceived(float Damage, AActor* DamageCauser)
+{
+    if (AIComponent)
+    {
+        AIComponent->EnqueueSimpleEvent(TEXT("TookDamage"));
+        if (DamageCauser)
+        {
+            AIComponent->SetBlackboardVector(TEXT("DamageSourcePos"), DamageCauser->GetActorLocation());
+        }
+    }
+}
+
+// From dialogue system
+void AMyCharacter::OnDialogueComplete(FName DialogueId)
+{
+    if (AIComponent)
+    {
+        AIComponent->EnqueueSimpleEvent(TEXT("DialogueEnd"));
+    }
+}
+
+// From interaction system
+void AMyCharacter::OnPlayerInteract(AActor* Player)
+{
+    if (AIComponent)
+    {
+        AIComponent->EnqueueSimpleEvent(TEXT("PlayerInteract"));
+        AIComponent->SetBlackboardVector(TEXT("PlayerPosition"), Player->GetActorLocation());
+    }
+}
+```
+
+### 14.5 Common Blackboard Keys Convention
+
+Recommended naming conventions for blackboard keys:
+
+| Category | Key Pattern | Type | Example Use |
+|----------|-------------|------|-------------|
+| Health | `Health`, `HealthPercent`, `IsLowHealth` | Float, Float, Bool | Flee when `HealthPercent < 25` |
+| Combat | `HasWeapon`, `AmmoCount`, `IsReloading` | Bool, Int, Bool | Reload when `AmmoCount == 0` |
+| Movement | `IsMoving`, `InCover`, `CanSprint` | Bool, Bool, Bool | Use cover in combat |
+| Detection | `EnemyVisible`, `EnemyCount`, `ThreatLevel` | Bool, Int, Float | Retreat when `EnemyCount > 2` |
+| Targets | `*Position` (EnemyPosition, HomePosition) | Vector | Used by MoveTo action |
+| State | `Is*` (IsAlerted, IsFleeing, IsDead) | Bool | High-level state flags |
+
+### 14.6 Performance Optimization
+
+```cpp
+// Adjust tick rate based on importance
+void AMyCharacter::OptimizeAITick()
+{
+    if (!AIComponent) return;
+    
+    float DistToPlayer = FVector::Dist(GetActorLocation(), GetPlayerLocation());
+    
+    if (DistToPlayer > 5000.0f)
+    {
+        AIComponent->SetTickInterval(1.0f);  // Very far: tick once/second
+    }
+    else if (DistToPlayer > 2000.0f)
+    {
+        AIComponent->SetTickInterval(0.2f);  // Far: tick 5x/second
+    }
+    else
+    {
+        AIComponent->SetTickInterval(0.0f);  // Near: tick every frame
+    }
+}
+
+// Batch blackboard updates
+void AMyCharacter::SyncBlackboardBatched()
+{
+    if (!AIComponent || !ShouldSyncThisFrame()) return;
+    
+    // Only sync when values actually change
+    float NewHealth = GetCurrentHealth();
+    if (FMath::Abs(LastSyncedHealth - NewHealth) > 1.0f)
+    {
+        AIComponent->SetBlackboardFloat(TEXT("Health"), NewHealth);
+        LastSyncedHealth = NewHealth;
+    }
 }
 ```
 

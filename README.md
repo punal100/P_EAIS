@@ -256,6 +256,355 @@ public:
 };
 ```
 
+## 🎯 Modular Integration Examples
+
+P_EAIS is designed to be completely game-agnostic. Below are comprehensive examples for integrating into ANY Unreal Engine project.
+
+### Example 1: Guard AI (Patrol and Chase)
+
+Create `Content/AIProfiles/Guard.runtime.json`:
+
+```json
+{
+  "name": "Guard",
+  "initialState": "Patrol",
+  "blackboard": [
+    { "key": "PatrolIndex", "value": { "type": "Int", "rawValue": "0" } },
+    { "key": "EnemyVisible", "value": { "type": "Bool", "rawValue": "false" } }
+  ],
+  "states": [
+    {
+      "id": "Patrol",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Log", "paramsJson": "{ \"message\": \"Patrolling\" }" }],
+      "onTick": [{ "actionName": "MoveTo", "paramsJson": "{ \"target\": \"CurrentWaypoint\" }" }],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Chase",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "EnemyVisible",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        },
+        {
+          "to": "NextWaypoint",
+          "priority": 50,
+          "condition": {
+            "type": "Distance",
+            "target": "CurrentWaypoint",
+            "op": "LessThan",
+            "compareValue": { "type": "Float", "rawValue": "100.0" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "NextWaypoint",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"IncrementPatrol\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Patrol", "priority": 100, "condition": { "type": "Timer", "seconds": 0.1 } }
+      ]
+    },
+    {
+      "id": "Chase",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Log", "paramsJson": "{ \"message\": \"Enemy spotted!\" }" }],
+      "onTick": [{ "actionName": "MoveTo", "paramsJson": "{ \"target\": \"EnemyPosition\" }" }],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Attack",
+          "priority": 100,
+          "condition": {
+            "type": "Distance",
+            "target": "EnemyPosition",
+            "op": "LessThan",
+            "compareValue": { "type": "Float", "rawValue": "200.0" }
+          }
+        },
+        {
+          "to": "Patrol",
+          "priority": 50,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "EnemyVisible",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "false" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Attack",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"PerformAttack\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Chase", "priority": 100, "condition": { "type": "Timer", "seconds": 1.0 } }
+      ]
+    }
+  ]
+}
+```
+
+### Example 2: Shopkeeper NPC (Event-Driven)
+
+```json
+{
+  "name": "Shopkeeper",
+  "initialState": "Idle",
+  "blackboard": [
+    { "key": "PlayerNearby", "value": { "type": "Bool", "rawValue": "false" } }
+  ],
+  "states": [
+    {
+      "id": "Idle",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"PlayIdleAnim\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Greeting", "priority": 100, "condition": { "type": "Event", "keyOrName": "PlayerInteract" } },
+        {
+          "to": "Wave",
+          "priority": 50,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "PlayerNearby",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Wave",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"PlayWaveAnim\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Greeting", "priority": 100, "condition": { "type": "Event", "keyOrName": "PlayerInteract" } },
+        { "to": "Idle", "priority": 50, "condition": { "type": "Timer", "seconds": 3.0 } }
+      ]
+    },
+    {
+      "id": "Greeting",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"OpenDialogue\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "ShowShop", "priority": 100, "condition": { "type": "Event", "keyOrName": "BrowseShop" } },
+        { "to": "Idle", "priority": 50, "condition": { "type": "Event", "keyOrName": "DialogueEnd" } }
+      ]
+    },
+    {
+      "id": "ShowShop",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"OpenShopUI\" }" }],
+      "onTick": [],
+      "onExit": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"CloseShopUI\" }" }],
+      "transitions": [
+        { "to": "Idle", "priority": 100, "condition": { "type": "Event", "keyOrName": "ShopClosed" } }
+      ]
+    }
+  ]
+}
+```
+
+### Example 3: Boss AI (Phase-Based Combat)
+
+```json
+{
+  "name": "BossAI",
+  "initialState": "Inactive",
+  "blackboard": [
+    { "key": "HealthPercent", "value": { "type": "Float", "rawValue": "100" } },
+    { "key": "PlayerInArena", "value": { "type": "Bool", "rawValue": "false" } }
+  ],
+  "states": [
+    {
+      "id": "Inactive",
+      "terminal": false,
+      "onEnter": [],
+      "onTick": [],
+      "onExit": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"PlayBossIntro\" }" }],
+      "transitions": [
+        {
+          "to": "Phase1",
+          "priority": 100,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "PlayerInArena",
+            "op": "Equal",
+            "compareValue": { "type": "Bool", "rawValue": "true" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Phase1",
+      "terminal": false,
+      "onTick": [{ "actionName": "MoveTo", "paramsJson": "{ \"target\": \"Player\" }" }],
+      "onEnter": [],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Phase2",
+          "priority": 200,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "HealthPercent",
+            "op": "LessThan",
+            "compareValue": { "type": "Float", "rawValue": "50" }
+          }
+        },
+        {
+          "to": "Attack",
+          "priority": 100,
+          "condition": {
+            "type": "Distance",
+            "target": "Player",
+            "op": "LessThan",
+            "compareValue": { "type": "Float", "rawValue": "300" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "Attack",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"BasicAttack\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Phase1", "priority": 100, "condition": { "type": "Timer", "seconds": 1.5 } }
+      ]
+    },
+    {
+      "id": "Phase2",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"EnterPhase2\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        {
+          "to": "Defeated",
+          "priority": 300,
+          "condition": {
+            "type": "Blackboard",
+            "keyOrName": "HealthPercent",
+            "op": "LessOrEqual",
+            "compareValue": { "type": "Float", "rawValue": "0" }
+          }
+        },
+        { "to": "SpecialAttack", "priority": 100, "condition": { "type": "Timer", "seconds": 5.0 } }
+      ]
+    },
+    {
+      "id": "SpecialAttack",
+      "terminal": false,
+      "onEnter": [{ "actionName": "Execute", "paramsJson": "{ \"target\": \"SpecialAttack\" }" }],
+      "onTick": [],
+      "onExit": [],
+      "transitions": [
+        { "to": "Phase2", "priority": 100, "condition": { "type": "Timer", "seconds": 2.0 } }
+      ]
+    },
+    {
+      "id": "Defeated",
+      "terminal": true,
+      "onEnter": [
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"PlayDeathAnim\" }" },
+        { "actionName": "Execute", "paramsJson": "{ \"target\": \"SpawnLoot\" }" }
+      ],
+      "onTick": [],
+      "onExit": [],
+      "transitions": []
+    }
+  ]
+}
+```
+
+### C++ Integration Example
+
+```cpp
+// MyAICharacter.h
+#pragma once
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "EAIS_TargetProvider.h"
+#include "MyAICharacter.generated.h"
+
+UCLASS()
+class AMyAICharacter : public ACharacter, public IEAIS_TargetProvider
+{
+    GENERATED_BODY()
+
+public:
+    AMyAICharacter();
+
+    UPROPERTY(EditAnywhere, Category = "AI")
+    TArray<FVector> PatrolPoints;
+
+protected:
+    virtual void BeginPlay() override;
+    
+    // IEAIS_TargetProvider
+    virtual bool EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const override;
+    virtual int32 EAIS_GetTeamId_Implementation() const override { return 0; }
+
+private:
+    UPROPERTY()
+    class UAIComponent* AIComponent;
+};
+
+// MyAICharacter.cpp
+AMyAICharacter::AMyAICharacter()
+{
+    AIComponent = CreateDefaultSubobject<UAIComponent>(TEXT("AIComponent"));
+}
+
+void AMyAICharacter::BeginPlay()
+{
+    Super::BeginPlay();
+    if (AIComponent)
+    {
+        AIComponent->JsonFilePath = TEXT("Guard.runtime.json");
+        AIComponent->bAutoStart = true;
+    }
+}
+
+bool AMyAICharacter::EAIS_GetTargetLocation_Implementation(FName TargetId, FVector& OutLocation) const
+{
+    FString Target = TargetId.ToString();
+    
+    if (Target == TEXT("CurrentWaypoint") && PatrolPoints.Num() > 0)
+    {
+        int32 Index = AIComponent->GetBlackboardInt(TEXT("PatrolIndex")) % PatrolPoints.Num();
+        OutLocation = PatrolPoints[Index];
+        return true;
+    }
+    
+    if (Target == TEXT("EnemyPosition"))
+    {
+        OutLocation = AIComponent->GetBlackboardVector(TEXT("EnemyPosition"));
+        return true;
+    }
+    
+    return false;
+}
+```
+
 ## 📚 Documentation
 
 | Document                                     | Description           |

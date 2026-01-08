@@ -16,6 +16,9 @@
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
 #include "Framework/Docking/TabManager.h"
+#include "Containers/Set.h" // For TSet in RefreshProfileList
+
+#include "EAIS_ProfileUtils.h"
 
 void UEAIS_AIEditor::NativeConstruct()
 {
@@ -67,18 +70,18 @@ void UEAIS_AIEditor::OnOpenGraphEditorClicked()
 void UEAIS_AIEditor::OnListProfilesClicked()
 {
     RefreshProfileList();
-    
+
     FString ProfilesDir = GetProfilesDirectory();
     TArray<FString> FoundFiles;
     IFileManager::Get().FindFiles(FoundFiles, *ProfilesDir, TEXT("*.json"));
-    
+
     UE_LOG(LogTemp, Log, TEXT("--- Available Profiles in %s ---"), *ProfilesDir);
-    for (const FString& File : FoundFiles)
+    for (const FString &File : FoundFiles)
     {
         UE_LOG(LogTemp, Log, TEXT("  • %s"), *FPaths::GetBaseFilename(File));
     }
     UE_LOG(LogTemp, Log, TEXT("Total: %d profiles"), FoundFiles.Num());
-    
+
     SetStatus(FString::Printf(TEXT("Found %d profiles. Check Output Log for list."), FoundFiles.Num()));
 }
 
@@ -101,7 +104,7 @@ void UEAIS_AIEditor::OnLoadClicked()
     {
         ProfileNameText->SetText(FText::FromString(SelectedProfileName));
     }
-    
+
     SetStatus(FString::Printf(TEXT("Selected: %s. Click 'Open Graph Editor' to edit."), *SelectedProfileName));
 }
 
@@ -115,7 +118,7 @@ void UEAIS_AIEditor::OnValidateClicked()
 
     FString ProfilePath = FPaths::Combine(GetProfilesDirectory(), SelectedProfileName + TEXT(".json"));
     FString ErrorMessage;
-    
+
     if (ValidateProfileFile(ProfilePath, ErrorMessage))
     {
         SetStatus(FString::Printf(TEXT("✓ %s is valid!"), *SelectedProfileName));
@@ -137,7 +140,7 @@ void UEAIS_AIEditor::OnExportRuntimeClicked()
     // Export from editor JSON to runtime JSON
     FString EditorPath = FPaths::Combine(GetEditorProfilesDirectory(), SelectedProfileName + TEXT(".editor.json"));
     FString RuntimePath = FPaths::Combine(GetProfilesDirectory(), SelectedProfileName + TEXT(".runtime.json"));
-    
+
     FString JsonContent;
     if (!FFileHelper::LoadFileToString(JsonContent, *EditorPath))
     {
@@ -153,7 +156,7 @@ void UEAIS_AIEditor::OnExportRuntimeClicked()
     // Parse and strip editor-only fields
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonContent);
-    
+
     if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
     {
         SetStatus(TEXT("Failed to parse JSON"), true);
@@ -166,7 +169,7 @@ void UEAIS_AIEditor::OnExportRuntimeClicked()
 
     // Write runtime JSON
     FString OutputJson;
-    TSharedRef<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>> Writer = 
+    TSharedRef<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>> Writer =
         TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&OutputJson);
     FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
 
@@ -214,47 +217,143 @@ void UEAIS_AIEditor::RefreshProfileList()
 {
     if (!ProfileDropdown)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[EAIS_AIEditor] ProfileDropdown is null, cannot refresh"));
         return;
     }
 
     ProfileDropdown->ClearOptions();
 
-    FString ProfilesDir = GetProfilesDirectory();
-    TArray<FString> FoundFiles;
-    IFileManager::Get().FindFiles(FoundFiles, *ProfilesDir, TEXT("*.json"));
+    TSet<FString> UniqueProfileNames;
 
-    for (const FString& File : FoundFiles)
+    // Search runtime profiles (*.runtime.json and *.json)
+    FString RuntimeProfilesDir = GetProfilesDirectory();
+    UE_LOG(LogTemp, Log, TEXT("[EAIS_AIEditor] Searching runtime profiles in: %s"), *RuntimeProfilesDir);
+
+    if (FPaths::DirectoryExists(RuntimeProfilesDir))
     {
-        FString ProfileName = FPaths::GetBaseFilename(File);
-        // Strip .runtime suffix if present
-        ProfileName = ProfileName.Replace(TEXT(".runtime"), TEXT(""));
+        TArray<FString> RuntimeFiles;
+        IFileManager::Get().FindFiles(RuntimeFiles, *RuntimeProfilesDir, TEXT("*.json"));
+
+        UE_LOG(LogTemp, Log, TEXT("[EAIS_AIEditor] Found %d runtime files"), RuntimeFiles.Num());
+
+        for (const FString &File : RuntimeFiles)
+        {
+            FString ProfileName = FPaths::GetBaseFilename(File);
+            // Strip .runtime suffix if present
+            ProfileName = ProfileName.Replace(TEXT(".runtime"), TEXT(""));
+            UniqueProfileNames.Add(ProfileName);
+            UE_LOG(LogTemp, Verbose, TEXT("[EAIS_AIEditor] Runtime profile: %s"), *ProfileName);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[EAIS_AIEditor] Runtime profiles directory does not exist: %s"), *RuntimeProfilesDir);
+    }
+
+    // Search editor profiles (*.editor.json)
+    FString EditorProfilesDir = GetEditorProfilesDirectory();
+    UE_LOG(LogTemp, Log, TEXT("[EAIS_AIEditor] Searching editor profiles in: %s"), *EditorProfilesDir);
+
+    if (FPaths::DirectoryExists(EditorProfilesDir))
+    {
+        TArray<FString> EditorFiles;
+        IFileManager::Get().FindFiles(EditorFiles, *EditorProfilesDir, TEXT("*.editor.json"));
+
+        UE_LOG(LogTemp, Log, TEXT("[EAIS_AIEditor] Found %d editor files"), EditorFiles.Num());
+
+        for (const FString &File : EditorFiles)
+        {
+            FString ProfileName = FPaths::GetBaseFilename(File);
+            // Strip .editor suffix
+            ProfileName = ProfileName.Replace(TEXT(".editor"), TEXT(""));
+            UniqueProfileNames.Add(ProfileName);
+            UE_LOG(LogTemp, Verbose, TEXT("[EAIS_AIEditor] Editor profile: %s"), *ProfileName);
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[EAIS_AIEditor] Editor profiles directory does not exist: %s"), *EditorProfilesDir);
+    }
+
+    // Add all unique profiles to dropdown (deterministic order)
+    const TArray<FString> SortedNames = EAIS_ProfileUtils::MakeSortedUnique(UniqueProfileNames);
+    for (const FString &ProfileName : SortedNames)
+    {
         ProfileDropdown->AddOption(ProfileName);
     }
+    UE_LOG(LogTemp, Log, TEXT("[EAIS_AIEditor] Added %d unique profiles to dropdown"), SortedNames.Num());
 
-    if (FoundFiles.Num() > 0)
+    // Select default profile deterministically
+    const FString DefaultName = EAIS_ProfileUtils::ChooseDefaultProfile(SortedNames, TEXT("Striker"));
+    if (!DefaultName.IsEmpty())
     {
-        ProfileDropdown->SetSelectedOption(FPaths::GetBaseFilename(FoundFiles[0]).Replace(TEXT(".runtime"), TEXT("")));
+        ProfileDropdown->SetSelectedOption(DefaultName);
+        SelectedProfileName = DefaultName;
+
+        if (ProfileNameText)
+        {
+            ProfileNameText->SetText(FText::FromString(DefaultName));
+        }
     }
+
+    SetStatus(FString::Printf(TEXT("Found %d profiles. Select and click 'Load'."), UniqueProfileNames.Num()));
 }
 
 FString UEAIS_AIEditor::GetProfilesDirectory() const
 {
-    return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles"));
+    // Priority: Plugin Content -> Project Content
+    // Try plugin content directory first (where profiles typically live)
+    FString PluginProfilesDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles"));
+    if (FPaths::DirectoryExists(PluginProfilesDir))
+    {
+        return PluginProfilesDir;
+    }
+
+    // Try alternative plugin location (git submodule path)
+    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Content/AIProfiles"));
+    if (FPaths::DirectoryExists(AltPluginDir))
+    {
+        return AltPluginDir;
+    }
+
+    // Fallback to project content directory
+    FString ProjectProfilesDir = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles"));
+    if (FPaths::DirectoryExists(ProjectProfilesDir))
+    {
+        return ProjectProfilesDir;
+    }
+
+    // Return plugin path anyway (for creation if needed)
+    return PluginProfilesDir;
 }
 
 FString UEAIS_AIEditor::GetEditorProfilesDirectory() const
 {
-    return FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI"));
+    // Try plugin directory first
+    FString PluginEditorDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI"));
+    if (FPaths::DirectoryExists(PluginEditorDir))
+    {
+        return PluginEditorDir;
+    }
+
+    // Try alternative plugin location (git submodule path)
+    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Editor/AI"));
+    if (FPaths::DirectoryExists(AltPluginDir))
+    {
+        return AltPluginDir;
+    }
+
+    return PluginEditorDir;
 }
 
-void UEAIS_AIEditor::SetStatus(const FString& Message, bool bIsError)
+void UEAIS_AIEditor::SetStatus(const FString &Message, bool bIsError)
 {
     if (StatusText)
     {
         StatusText->SetText(FText::FromString(Message));
         StatusText->SetColorAndOpacity(bIsError ? FLinearColor::Red : FLinearColor::White);
     }
-    
+
     // Also log to output
     if (bIsError)
     {
@@ -266,7 +365,7 @@ void UEAIS_AIEditor::SetStatus(const FString& Message, bool bIsError)
     }
 }
 
-bool UEAIS_AIEditor::ValidateProfileFile(const FString& FilePath, FString& OutErrorMessage)
+bool UEAIS_AIEditor::ValidateProfileFile(const FString &FilePath, FString &OutErrorMessage)
 {
     FString JsonContent;
     if (!FFileHelper::LoadFileToString(JsonContent, *FilePath))
@@ -277,7 +376,7 @@ bool UEAIS_AIEditor::ValidateProfileFile(const FString& FilePath, FString& OutEr
 
     TSharedPtr<FJsonObject> JsonObject;
     TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonContent);
-    
+
     if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
     {
         OutErrorMessage = TEXT("Invalid JSON syntax");
@@ -297,7 +396,7 @@ bool UEAIS_AIEditor::ValidateProfileFile(const FString& FilePath, FString& OutEr
     }
 
     // Validate states is an array
-    const TArray<TSharedPtr<FJsonValue>>* StatesArray;
+    const TArray<TSharedPtr<FJsonValue>> *StatesArray;
     if (!JsonObject->TryGetArrayField(TEXT("states"), StatesArray))
     {
         OutErrorMessage = TEXT("'states' must be an array");
@@ -307,7 +406,7 @@ bool UEAIS_AIEditor::ValidateProfileFile(const FString& FilePath, FString& OutEr
     // Check each state
     for (int32 i = 0; i < StatesArray->Num(); i++)
     {
-        const TSharedPtr<FJsonObject>* StateObject;
+        const TSharedPtr<FJsonObject> *StateObject;
         if (!(*StatesArray)[i]->TryGetObject(StateObject))
         {
             OutErrorMessage = FString::Printf(TEXT("State %d must be an object"), i);
@@ -353,4 +452,3 @@ FString UEAIS_AIEditor::GetWidgetSpec()
     Spec += TEXT("}\n");
     return Spec;
 }
-

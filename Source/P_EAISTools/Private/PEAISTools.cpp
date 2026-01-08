@@ -50,8 +50,8 @@ void FPEAISToolsModule::RegisterMenuExtensions()
 		UToolMenu* ToolsMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
 		if (ToolsMenu)
 		{
-			FToolMenuSection& Section = ToolsMenu->FindOrAddSection("EAISTools");
-			Section.Label = LOCTEXT("EAISToolsSection", "EAIS");
+			FToolMenuSection& Section = ToolsMenu->FindOrAddSection("EAIS");
+			Section.Label = LOCTEXT("EAISSection", "EAIS");
 			
 			Section.AddMenuEntry(
 				"OpenEAISAIEditor",
