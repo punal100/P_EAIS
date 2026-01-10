@@ -199,6 +199,18 @@ Tools → EAIS → EAIS AI Editor
     "compareValue": { "type": "Bool|Int|Float|String", "rawValue": "value" }
   }
 }
+// Composite Conditions (And, Or, Not)
+{
+  "to": "TargetStateId",
+  "priority": 100,
+  "condition": {
+    "type": "And|Or|Not",
+    "conditions": [
+        { "type": "Blackboard", "keyOrName": "Key1", "op": "Equal", "compareValue": { "type": "Bool", "rawValue": "true" } },
+        { "type": "Blackboard", "keyOrName": "Key2", "op": "Equal", "compareValue": { "type": "Bool", "rawValue": "true" } }
+    ]
+  }
+}
 ```
 
 ## 🎨 Visual AI Editor

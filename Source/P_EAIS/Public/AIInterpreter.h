@@ -112,6 +112,9 @@ public:
     /** Get total runtime */
     float GetTotalRuntime() const { return TotalRuntime; }
 
+    /** Evaluate a condition (Public for unit testing and extension) */
+    bool EvaluateCondition(const FAICondition& Condition) const;
+
     // ==================== Delegates ====================
 
     /** Called when state changes */
@@ -170,9 +173,6 @@ private:
 
     /** Execute actions */
     void ExecuteActions(const TArray<FAIActionEntry>& Actions);
-
-    /** Evaluate a condition */
-    bool EvaluateCondition(const FAICondition& Condition) const;
 
     /** Process queued events */
     void ProcessEvents();

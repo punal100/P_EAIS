@@ -435,53 +435,81 @@ bool FAIInterpreter::EvaluateCondition(const FAICondition& Condition) const
         }
 
     case EAIConditionType::Distance:
+    {
+        FVector TargetLocation = FVector::ZeroVector;
+        
+        // Try to get location from blackboard
+        FBlackboardValue BBVal;
+        FString BBKey = Condition.Target.IsEmpty() ? Condition.Name : Condition.Target;
+
+        if (GetBlackboardValue(BBKey, BBVal))
         {
-            // Distance check requires owner component and a target
-            if (!OwnerComponent.IsValid())
+            if (BBVal.Type == EBlackboardValueType::Vector)
             {
-                return false;
+                TargetLocation = BBVal.VectorValue;
             }
-            
-            // Get target location from blackboard
-            FBlackboardValue TargetValue;
-            if (GetBlackboardValue(Condition.Target, TargetValue))
+            else if (BBVal.Type == EBlackboardValueType::Object && BBVal.ObjectValue.IsValid())
             {
-                FVector TargetLocation = TargetValue.VectorValue;
-                if (TargetValue.Type == EBlackboardValueType::Object && TargetValue.ObjectValue.IsValid())
+                AActor* TargetActor = Cast<AActor>(BBVal.ObjectValue.Get());
+                if (TargetActor)
                 {
-                    if (AActor* TargetActor = Cast<AActor>(TargetValue.ObjectValue.Get()))
-                    {
-                        TargetLocation = TargetActor->GetActorLocation();
-                    }
-                }
-                
-                AActor* Owner = OwnerComponent->GetOwner();
-                if (Owner)
-                {
-                    float Distance = FVector::Dist(Owner->GetActorLocation(), TargetLocation);
-                    float CompareDistance = FCString::Atof(*Condition.Value);
-                    
-                    switch (Condition.Operator)
-                    {
-                    case EAIConditionOperator::LessThan:
-                        return Distance < CompareDistance;
-                    case EAIConditionOperator::GreaterThan:
-                        return Distance > CompareDistance;
-                    case EAIConditionOperator::LessOrEqual:
-                        return Distance <= CompareDistance;
-                    case EAIConditionOperator::GreaterOrEqual:
-                        return Distance >= CompareDistance;
-                    default:
-                        return FMath::IsNearlyEqual(Distance, CompareDistance, 10.0f);
-                    }
+                    TargetLocation = TargetActor->GetActorLocation();
                 }
             }
-            return false;
+        }
+        else if (BBKey.Equals(TEXT("Ball"), ESearchCase::IgnoreCase))
+        {
+            // Specialized/Temporary fallback for ball if not in BB
         }
 
+        AActor* Owner = OwnerComponent->GetOwner();
+        if (Owner)
+        {
+            float Distance = FVector::Dist(Owner->GetActorLocation(), TargetLocation);
+            float CompareDistance = FCString::Atof(*Condition.Value);
+
+            switch (Condition.Operator)
+            {
+            case EAIConditionOperator::Equal: return FMath::IsNearlyEqual(Distance, CompareDistance, 10.0f);
+            case EAIConditionOperator::NotEqual: return !FMath::IsNearlyEqual(Distance, CompareDistance, 10.0f);
+            case EAIConditionOperator::GreaterThan: return Distance > CompareDistance;
+            case EAIConditionOperator::LessThan: return Distance < CompareDistance;
+            case EAIConditionOperator::GreaterOrEqual: return Distance >= CompareDistance;
+            case EAIConditionOperator::LessOrEqual: return Distance <= CompareDistance;
+            }
+        }
+        return false;
+    }
+
+    case EAIConditionType::And:
+    {
+        for (const FAICondition& Sub : Condition.SubConditions)
+        {
+            if (!EvaluateCondition(Sub)) return false;
+        }
+        return Condition.SubConditions.Num() > 0;
+    }
+
+    case EAIConditionType::Or:
+    {
+        for (const FAICondition& Sub : Condition.SubConditions)
+        {
+            if (EvaluateCondition(Sub)) return true;
+        }
+        return false;
+    }
+
+    case EAIConditionType::Not:
+    {
+        if (Condition.SubConditions.Num() > 0)
+        {
+            return !EvaluateCondition(Condition.SubConditions[0]);
+        }
+        return false;
+    }
+
     case EAIConditionType::Custom:
-        // Custom conditions need to be handled via registered condition providers
-        // For now, return false
+        // Registered C++ conditions would go here
         return false;
 
     default:

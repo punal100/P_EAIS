@@ -10,6 +10,83 @@
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+// Include P_MEIS for input injection
+#include "Manager/CPP_BPL_InputBinding.h"
+
+/** Helper to parse a condition recursively from JSON */
+static void ParseConditionInternal(const TSharedPtr<FJsonObject>& CondObj, FAICondition& OutCond)
+{
+    if (!CondObj.IsValid()) return;
+
+    FString TypeStr;
+    if (CondObj->TryGetStringField(TEXT("type"), TypeStr))
+    {
+        if (TypeStr.Equals(TEXT("Event"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::Event;
+        else if (TypeStr.Equals(TEXT("Timer"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::Timer;
+        else if (TypeStr.Equals(TEXT("Distance"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::Distance;
+        else if (TypeStr.Equals(TEXT("And"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::And;
+        else if (TypeStr.Equals(TEXT("Or"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::Or;
+        else if (TypeStr.Equals(TEXT("Not"), ESearchCase::IgnoreCase)) OutCond.Type = EAIConditionType::Not;
+        else OutCond.Type = EAIConditionType::Blackboard;
+    }
+
+    // Handle Composite Conditions
+    if (OutCond.Type == EAIConditionType::And || 
+        OutCond.Type == EAIConditionType::Or || 
+        OutCond.Type == EAIConditionType::Not)
+    {
+        const TArray<TSharedPtr<FJsonValue>>* SubCondsArray = nullptr;
+        if (CondObj->TryGetArrayField(TEXT("conditions"), SubCondsArray))
+        {
+            for (const auto& SubCondVal : *SubCondsArray)
+            {
+                if (SubCondVal->Type == EJson::Object)
+                {
+                    FAICondition SubCond;
+                    ParseConditionInternal(SubCondVal->AsObject(), SubCond);
+                    OutCond.SubConditions.Add(SubCond);
+                }
+            }
+        }
+    }
+    
+    CondObj->TryGetStringField(TEXT("name"), OutCond.Name);
+    if (OutCond.Name.IsEmpty()) CondObj->TryGetStringField(TEXT("key"), OutCond.Name);
+    if (OutCond.Name.IsEmpty()) CondObj->TryGetStringField(TEXT("keyOrName"), OutCond.Name);
+    
+    CondObj->TryGetStringField(TEXT("target"), OutCond.Target);
+    
+    // Parse value
+    TSharedPtr<FJsonValue> ValueField = CondObj->TryGetField(TEXT("value"));
+    if (!ValueField.IsValid()) ValueField = CondObj->TryGetField(TEXT("compareValue"));
+    
+    if (ValueField.IsValid())
+    {
+        if (ValueField->Type == EJson::Boolean) OutCond.Value = ValueField->AsBool() ? TEXT("true") : TEXT("false");
+        else if (ValueField->Type == EJson::Object) 
+        {
+            ValueField->AsObject()->TryGetStringField(TEXT("rawValue"), OutCond.Value);
+        }
+        else if (ValueField->Type == EJson::String) OutCond.Value = ValueField->AsString();
+        else if (ValueField->Type == EJson::Number) OutCond.Value = FString::SanitizeFloat(ValueField->AsNumber());
+    }
+    
+    if (OutCond.Type == EAIConditionType::Timer)
+    {
+        CondObj->TryGetNumberField(TEXT("seconds"), OutCond.Seconds);
+    }
+    
+    FString OpStr;
+    if (CondObj->TryGetStringField(TEXT("op"), OpStr))
+    {
+        if (OpStr == TEXT("==") || OpStr.Equals(TEXT("Equal"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::Equal;
+        else if (OpStr == TEXT("!=") || OpStr.Equals(TEXT("NotEqual"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::NotEqual;
+        else if (OpStr == TEXT(">") || OpStr.Equals(TEXT("GreaterThan"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::GreaterThan;
+        else if (OpStr == TEXT("<") || OpStr.Equals(TEXT("LessThan"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::LessThan;
+        else if (OpStr == TEXT(">=") || OpStr.Equals(TEXT("GreaterOrEqual"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::GreaterOrEqual;
+        else if (OpStr == TEXT("<=") || OpStr.Equals(TEXT("LessOrEqual"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::LessOrEqual;
+    }
+}
 
 UAIBehaviour::UAIBehaviour()
 {
@@ -187,7 +264,15 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
             if (ValueObj.IsValid())
             {
                 FString TypeStr = ValueObj->GetStringField(TEXT("type"));
-                Entry.Value.RawValue = ValueObj->GetStringField(TEXT("rawValue"));
+                // Entry.Value.RawValue = ValueObj->GetStringField(TEXT("rawValue"));
+                if (ValueObj->HasTypedField<EJson::String>(TEXT("rawValue")))
+                {
+                    Entry.Value.RawValue = ValueObj->GetStringField(TEXT("rawValue"));
+                }
+                else
+                {
+                     Entry.Value.RawValue = TEXT("");
+                }
                 
                 if (TypeStr.Equals(TEXT("Bool"), ESearchCase::IgnoreCase))
                 {
@@ -277,20 +362,19 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
                                 // Parse inner JSON string
-                                FString ParamsJsonStr = ActionObj->GetStringField(TEXT("paramsJson"));
-                                TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
-                                FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                FString ParamsJsonStr;
+                                if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
+                                {
+                                    TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
+                                    FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                }
                             }
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (ParamsObj->HasField(TEXT("target")))
+                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
                                 {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("target"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Target")))
-                                {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("Target"));
+                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
                                 }
                                 if (ParamsObj->HasField(TEXT("power")))
                                 {
@@ -300,9 +384,10 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                 {
                                     Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Power"));
                                 }
-                                if (ParamsObj->HasField(TEXT("message")))
+                                FString Message;
+                                if (ParamsObj->TryGetStringField(TEXT("message"), Message))
                                 {
-                                    Entry.Params.ExtraParams.Add(TEXT("message"), ParamsObj->GetStringField(TEXT("message")));
+                                    Entry.Params.ExtraParams.Add(TEXT("message"), Message);
                                 }
                             }
                             State.OnEnter.Add(Entry);
@@ -343,20 +428,19 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
                                 // Parse inner JSON string
-                                FString ParamsJsonStr = ActionObj->GetStringField(TEXT("paramsJson"));
-                                TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
-                                FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                FString ParamsJsonStr;
+                                if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
+                                {
+                                    TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
+                                    FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                }
                             }
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (ParamsObj->HasField(TEXT("target")))
+                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
                                 {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("target"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Target")))
-                                {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("Target"));
+                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
                                 }
                                 if (ParamsObj->HasField(TEXT("speed")))
                                 {
@@ -417,80 +501,7 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (CondObj.IsValid())
                             {
-                                FString TypeStr = CondObj->GetStringField(TEXT("type"));
-                                if (TypeStr.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Event;
-                                }
-                                else if (TypeStr.Equals(TEXT("Timer"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Timer;
-                                    Trans.Condition.Seconds = CondObj->GetNumberField(TEXT("seconds"));
-                                }
-                                else if (TypeStr.Equals(TEXT("Distance"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Distance;
-                                }
-                                
-                                if (CondObj->HasField(TEXT("name")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("name"));
-                                }
-                                else if (CondObj->HasField(TEXT("key")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("key"));
-                                }
-                                else if (CondObj->HasField(TEXT("keyOrName")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("keyOrName"));
-                                }
-                                
-                                // Parse "target" for Distance conditions
-                                if (CondObj->HasField(TEXT("target")))
-                                {
-                                    Trans.Condition.Target = CondObj->GetStringField(TEXT("target"));
-                                }
-                                
-                                // Parse value - support both "value" and "compareValue"
-                                TSharedPtr<FJsonValue> ValueField;
-                                if (CondObj->HasField(TEXT("value")))
-                                {
-                                    ValueField = CondObj->TryGetField(TEXT("value"));
-                                }
-                                else if (CondObj->HasField(TEXT("compareValue")))
-                                {
-                                    ValueField = CondObj->TryGetField(TEXT("compareValue"));
-                                }
-                                
-                                if (ValueField.IsValid())
-                                {
-                                    if (ValueField->Type == EJson::Boolean)
-                                    {
-                                        Trans.Condition.Value = ValueField->AsBool() ? TEXT("true") : TEXT("false");
-                                    }
-                                    else if (ValueField->Type == EJson::Object)
-                                    {
-                                        // { "type": "...", "rawValue": "..." } format
-                                        TSharedPtr<FJsonObject> ValueObj = ValueField->AsObject();
-                                        Trans.Condition.Value = ValueObj->GetStringField(TEXT("rawValue"));
-                                    }
-                                    else if (ValueField->Type == EJson::String)
-                                    {
-                                        Trans.Condition.Value = ValueField->AsString();
-                                    }
-                                    else if (ValueField->Type == EJson::Number)
-                                    {
-                                        Trans.Condition.Value = FString::SanitizeFloat(ValueField->AsNumber());
-                                    }
-                                }
-                                
-                                FString OpStr = CondObj->GetStringField(TEXT("op"));
-                                if (OpStr == TEXT("==")) Trans.Condition.Operator = EAIConditionOperator::Equal;
-                                else if (OpStr == TEXT("!=")) Trans.Condition.Operator = EAIConditionOperator::NotEqual;
-                                else if (OpStr == TEXT(">")) Trans.Condition.Operator = EAIConditionOperator::GreaterThan;
-                                else if (OpStr == TEXT("<")) Trans.Condition.Operator = EAIConditionOperator::LessThan;
-                                else if (OpStr == TEXT(">=")) Trans.Condition.Operator = EAIConditionOperator::GreaterOrEqual;
-                                else if (OpStr == TEXT("<=")) Trans.Condition.Operator = EAIConditionOperator::LessOrEqual;
+                                ParseConditionInternal(CondObj, Trans.Condition);
                             }
                             
                             State.Transitions.Add(Trans);
@@ -581,10 +592,11 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                 {
                                     Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Power"));
                                 }
-                                if (ParamsObj->HasField(TEXT("message")))
-                                {
-                                    Entry.Params.ExtraParams.Add(TEXT("message"), ParamsObj->GetStringField(TEXT("message")));
-                                }
+                                    FString Message;
+                                    if (ParamsObj->TryGetStringField(TEXT("message"), Message))
+                                    {
+                                        Entry.Params.ExtraParams.Add(TEXT("message"), Message);
+                                    }
                             }
                             State.OnEnter.Add(Entry);
                         }
@@ -624,20 +636,19 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
                                 // Parse inner JSON string
-                                FString ParamsJsonStr = ActionObj->GetStringField(TEXT("paramsJson"));
-                                TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
-                                FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                FString ParamsJsonStr;
+                                if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
+                                {
+                                    TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
+                                    FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
+                                }
                             }
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (ParamsObj->HasField(TEXT("target")))
+                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
                                 {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("target"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Target")))
-                                {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("Target"));
+                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
                                 }
                                 if (ParamsObj->HasField(TEXT("speed")))
                                 {
@@ -698,80 +709,7 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (CondObj.IsValid())
                             {
-                                FString TypeStr = CondObj->GetStringField(TEXT("type"));
-                                if (TypeStr.Equals(TEXT("Event"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Event;
-                                }
-                                else if (TypeStr.Equals(TEXT("Timer"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Timer;
-                                    Trans.Condition.Seconds = CondObj->GetNumberField(TEXT("seconds"));
-                                }
-                                else if (TypeStr.Equals(TEXT("Distance"), ESearchCase::IgnoreCase))
-                                {
-                                    Trans.Condition.Type = EAIConditionType::Distance;
-                                }
-                                
-                                if (CondObj->HasField(TEXT("name")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("name"));
-                                }
-                                else if (CondObj->HasField(TEXT("key")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("key"));
-                                }
-                                else if (CondObj->HasField(TEXT("keyOrName")))
-                                {
-                                    Trans.Condition.Name = CondObj->GetStringField(TEXT("keyOrName"));
-                                }
-                                
-                                // Parse "target" for Distance conditions
-                                if (CondObj->HasField(TEXT("target")))
-                                {
-                                    Trans.Condition.Target = CondObj->GetStringField(TEXT("target"));
-                                }
-                                
-                                // Parse value - support both "value" and "compareValue"
-                                TSharedPtr<FJsonValue> ValueField;
-                                if (CondObj->HasField(TEXT("value")))
-                                {
-                                    ValueField = CondObj->TryGetField(TEXT("value"));
-                                }
-                                else if (CondObj->HasField(TEXT("compareValue")))
-                                {
-                                    ValueField = CondObj->TryGetField(TEXT("compareValue"));
-                                }
-                                
-                                if (ValueField.IsValid())
-                                {
-                                    if (ValueField->Type == EJson::Boolean)
-                                    {
-                                        Trans.Condition.Value = ValueField->AsBool() ? TEXT("true") : TEXT("false");
-                                    }
-                                    else if (ValueField->Type == EJson::Object)
-                                    {
-                                        // { "type": "...", "rawValue": "..." } format
-                                        TSharedPtr<FJsonObject> ValueObj = ValueField->AsObject();
-                                        Trans.Condition.Value = ValueObj->GetStringField(TEXT("rawValue"));
-                                    }
-                                    else if (ValueField->Type == EJson::String)
-                                    {
-                                        Trans.Condition.Value = ValueField->AsString();
-                                    }
-                                    else if (ValueField->Type == EJson::Number)
-                                    {
-                                        Trans.Condition.Value = FString::SanitizeFloat(ValueField->AsNumber());
-                                    }
-                                }
-                                
-                                FString OpStr = CondObj->GetStringField(TEXT("op"));
-                                if (OpStr == TEXT("==")) Trans.Condition.Operator = EAIConditionOperator::Equal;
-                                else if (OpStr == TEXT("!=")) Trans.Condition.Operator = EAIConditionOperator::NotEqual;
-                                else if (OpStr == TEXT(">")) Trans.Condition.Operator = EAIConditionOperator::GreaterThan;
-                                else if (OpStr == TEXT("<")) Trans.Condition.Operator = EAIConditionOperator::LessThan;
-                                else if (OpStr == TEXT(">=")) Trans.Condition.Operator = EAIConditionOperator::GreaterOrEqual;
-                                else if (OpStr == TEXT("<=")) Trans.Condition.Operator = EAIConditionOperator::LessOrEqual;
+                                ParseConditionInternal(CondObj, Trans.Condition);
                             }
                             
                             State.Transitions.Add(Trans);

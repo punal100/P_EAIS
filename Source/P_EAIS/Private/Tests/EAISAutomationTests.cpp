@@ -362,4 +362,60 @@ bool FEAISTickExecutionTest::RunTest(const FString &Parameters)
     return true;
 }
 
+// ==============================================================================
+// EAIS.Core.CompositeConditions
+// ==============================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEAISCompositeConditionTest, "EAIS.Core.CompositeConditions",
+                                 EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FEAISCompositeConditionTest::RunTest(const FString &Parameters)
+{
+    FAIInterpreter Interpreter;
+    Interpreter.SetBlackboardBool(TEXT("Key1"), true);
+    Interpreter.SetBlackboardBool(TEXT("Key2"), true);
+
+    // Test And condition (True AND True = True)
+    FAICondition AndCond;
+    AndCond.Type = EAIConditionType::And;
+    
+    FAICondition Sub1;
+    Sub1.Type = EAIConditionType::Blackboard;
+    Sub1.Name = TEXT("Key1");
+    Sub1.Value = TEXT("true");
+    
+    FAICondition Sub2;
+    Sub2.Type = EAIConditionType::Blackboard;
+    Sub2.Name = TEXT("Key2");
+    Sub2.Value = TEXT("true");
+    
+    AndCond.SubConditions.Add(Sub1);
+    AndCond.SubConditions.Add(Sub2);
+    
+    TestTrue(TEXT("TRUE AND TRUE should be TRUE"), Interpreter.EvaluateCondition(AndCond));
+    
+    Interpreter.SetBlackboardBool(TEXT("Key2"), false);
+    TestFalse(TEXT("TRUE AND FALSE should be FALSE"), Interpreter.EvaluateCondition(AndCond));
+
+    // Test Or condition (True OR False = True)
+    FAICondition OrCond;
+    OrCond.Type = EAIConditionType::Or;
+    OrCond.SubConditions.Add(Sub1);
+    OrCond.SubConditions.Add(Sub2);
+    
+    TestTrue(TEXT("TRUE OR FALSE should be TRUE"), Interpreter.EvaluateCondition(OrCond));
+    
+    Interpreter.SetBlackboardBool(TEXT("Key1"), false);
+    TestFalse(TEXT("FALSE OR FALSE should be FALSE"), Interpreter.EvaluateCondition(OrCond));
+
+    // Test Not condition (NOT False = True)
+    FAICondition NotCond;
+    NotCond.Type = EAIConditionType::Not;
+    NotCond.SubConditions.Add(Sub1); // Key1 is now false
+    
+    TestTrue(TEXT("NOT FALSE should be TRUE"), Interpreter.EvaluateCondition(NotCond));
+
+    return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -86,7 +86,13 @@ enum class EAIConditionType : uint8
     /** Distance to a target */
     Distance,
     /** Custom condition (C++ registered) */
-    Custom
+    Custom,
+    /** Composite condition (All sub-conditions must be true) */
+    And,
+    /** Composite condition (Any sub-condition must be true) */
+    Or,
+    /** Composite condition (The sub-condition must be false) */
+    Not
 };
 
 /**
@@ -227,6 +233,11 @@ struct P_EAIS_API FAICondition
     /** For distance conditions: target actor/location */
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "EAIS")
     FString Target;
+
+    /** Sub-conditions for composite condition types (And, Or, Not) */
+    // Note: UPROPERTY removed because UHT does not support recursive structs.
+    // This is populated manually via JSON parsing and used for modular evaluation.
+    TArray<FAICondition> SubConditions;
 };
 
 /**
