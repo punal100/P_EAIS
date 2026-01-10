@@ -580,6 +580,18 @@ Shows:
 1. Verify file extension is `.runtime.json`, `.editor.json`, or `.json`
 2. Check the path displayed in the widget toolbar
 3. Click "Refresh" to rescan directories
+### Graph Editor: Composite Conditions
+The Visual Graph Editor supports editing complex logic using nested conditions (`And`, `Or`, `Not`).
+
+1. **Select a State Node** in the graph.
+2. Expand the **Transitions** array in the Details Panel.
+3. Locate the **Condition** field.
+4. By default, it is a `Leaf` condition (Standard).
+5. Use the dropdown to change the class to `Condition: AND`, `Condition: OR`, or `Condition: NOT`.
+6. Expand the new Composite Condition to add sub-conditions.
+7. You can nest these indefinitely (e.g., `(A AND B) OR C`).
+
+*Note: The raw `Transitions` array (Struct) is hidden in the editor to prevent data corruption. Always use the `VisualTransitions` or the main helper list.*
 4. Check Output Log for "Found X profiles" messages
 
 ### 13.3 Profile Path Discovery

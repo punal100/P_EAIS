@@ -374,13 +374,16 @@ FAIEditorGraph SEAIS_GraphEditor::ExportToEditorGraph() const
         if (!StateNode)
             continue;
 
+        // Sync Editor UObjects -> Runtime Structs before exporting
+        FAIState RuntimeState = StateNode->ExportToState();
+
         FAIEditorGraph::FEditorState EdState;
-        EdState.Id = StateNode->StateId;
-        EdState.bTerminal = StateNode->bIsTerminal;
-        EdState.OnEnter = StateNode->OnEnterActions;
-        EdState.OnTick = StateNode->OnTickActions;
-        EdState.OnExit = StateNode->OnExitActions;
-        EdState.Transitions = StateNode->Transitions;
+        EdState.Id = RuntimeState.Id;
+        EdState.bTerminal = RuntimeState.bTerminal;
+        EdState.OnEnter = RuntimeState.OnEnter;
+        EdState.OnTick = RuntimeState.OnTick;
+        EdState.OnExit = RuntimeState.OnExit;
+        EdState.Transitions = RuntimeState.Transitions;
 
         Result.States.Add(EdState);
 
@@ -417,11 +420,19 @@ void SEAIS_GraphEditor::ImportFromEditorGraph(const FAIEditorGraph &InGraph)
         UEAIS_GraphNode *Node = Schema->CreateStateNode(EdGraph, Position, State.Id);
         if (Node)
         {
-            Node->bIsTerminal = State.bTerminal;
-            Node->OnEnterActions = State.OnEnter;
-            Node->OnTickActions = State.OnTick;
-            Node->OnExitActions = State.OnExit;
-            Node->Transitions = State.Transitions;
+            // Convert FEditorState -> FAIState to use the sync function
+            FAIState RuntimeState;
+            RuntimeState.Id = State.Id;
+            RuntimeState.bTerminal = State.bTerminal;
+            RuntimeState.OnEnter = State.OnEnter;
+            RuntimeState.OnTick = State.OnTick;
+            RuntimeState.OnExit = State.OnExit;
+            RuntimeState.Transitions = State.Transitions;
+
+            // Initialize Node (Populates VisualTransitions)
+            Node->InitFromState(RuntimeState);
+            
+            // Set Editor-specific properties
             Node->bIsInitialState = (State.Id == InGraph.InitialState);
 
             NodeMap.Add(State.Id, Node);

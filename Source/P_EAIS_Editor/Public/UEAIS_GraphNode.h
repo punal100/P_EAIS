@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EAIS_Types.h"
+#include "EAIS_EditorTypes.h"
 #include "UEAIS_GraphNode.generated.h"
 
 class UEdGraphPin;
@@ -31,6 +32,8 @@ public:
     virtual bool CanDuplicateNode() const override { return true; }
     //~ End UEdGraphNode Interface
 
+    // ... (State ID, etc)
+
     /** State ID (unique identifier) */
     UPROPERTY(EditAnywhere, Category = "State")
     FString StateId;
@@ -55,9 +58,19 @@ public:
     UPROPERTY(EditAnywhere, Category = "Actions")
     TArray<FAIActionEntry> OnExitActions;
 
-    /** Outgoing transitions */
-    UPROPERTY(EditAnywhere, Category = "Transitions")
+    /** 
+     * Raw Runtime Transitions (Hidden from Editor)
+     * Mirrors VisualTransitions for export consistency.
+     */
+    UPROPERTY()
     TArray<FAITransition> Transitions;
+
+    /** 
+     * Visual Transitions (Editable in Details Panel)
+     * Uses UObjects to allow nested composite conditions.
+     */
+    UPROPERTY(EditAnywhere, Instanced, Category = "Transitions")
+    TArray<UEAIS_EditorTransition*> VisualTransitions;
 
     /** Editor comment */
     UPROPERTY(EditAnywhere, Category = "Editor")

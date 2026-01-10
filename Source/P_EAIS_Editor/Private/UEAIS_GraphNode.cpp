@@ -101,6 +101,17 @@ void UEAIS_GraphNode::InitFromState(const FAIState& State)
     OnTickActions = State.OnTick;
     OnExitActions = State.OnExit;
     Transitions = State.Transitions;
+
+    // Populate VisualTransitions from Runtime Transitions
+    VisualTransitions.Empty();
+    for (const FAITransition& Trans : Transitions)
+    {
+        UEAIS_EditorTransition* EditorTrans = NewObject<UEAIS_EditorTransition>(this);
+        EditorTrans->To = Trans.To;
+        EditorTrans->Priority = Trans.Priority;
+        EditorTrans->Condition = UEAIS_EditorCondition::FromRuntimeCondition(EditorTrans, Trans.Condition);
+        VisualTransitions.Add(EditorTrans);
+    }
 }
 
 FAIState UEAIS_GraphNode::ExportToState() const
@@ -111,7 +122,17 @@ FAIState UEAIS_GraphNode::ExportToState() const
     State.OnEnter = OnEnterActions;
     State.OnTick = OnTickActions;
     State.OnExit = OnExitActions;
-    State.Transitions = Transitions;
+    
+    // Export VisualTransitions to Runtime Transitions
+    State.Transitions.Empty();
+    for (UEAIS_EditorTransition* Visual : VisualTransitions)
+    {
+        if (Visual)
+        {
+            State.Transitions.Add(Visual->ToRuntimeTransition());
+        }
+    }
+
     return State;
 }
 

@@ -54,6 +54,7 @@ static bool ParseActionEntry(const TSharedPtr<FJsonObject>& ActObj, FAIActionEnt
 }
 
 // Helper to parse condition from JSON (supports both canonical JSON and runtime C++ types)
+// Helper to parse condition from JSON (supports both canonical JSON and runtime C++ types)
 static bool ParseCondition(const TSharedPtr<FJsonObject>& CondObj, FAICondition& OutCond)
 {
     if (!CondObj.IsValid()) return false;
@@ -63,6 +64,9 @@ static bool ParseCondition(const TSharedPtr<FJsonObject>& CondObj, FAICondition&
     else if (TypeStr == TEXT("Event")) OutCond.Type = EAIConditionType::Event;
     else if (TypeStr == TEXT("Timer")) OutCond.Type = EAIConditionType::Timer;
     else if (TypeStr == TEXT("Distance")) OutCond.Type = EAIConditionType::Distance;
+    else if (TypeStr == TEXT("And")) OutCond.Type = EAIConditionType::And;
+    else if (TypeStr == TEXT("Or")) OutCond.Type = EAIConditionType::Or;
+    else if (TypeStr == TEXT("Not")) OutCond.Type = EAIConditionType::Not;
     
     // Support canonical JSON field names
     if (CondObj->HasField(TEXT("keyOrName")))
@@ -118,6 +122,22 @@ static bool ParseCondition(const TSharedPtr<FJsonObject>& CondObj, FAICondition&
     
     CondObj->TryGetNumberField(TEXT("seconds"), OutCond.Seconds);
     CondObj->TryGetStringField(TEXT("target"), OutCond.Target);
+
+    // Recursively parse sub-conditions for composite types
+    const TArray<TSharedPtr<FJsonValue>>* SubCondsArr = nullptr;
+    if (CondObj->TryGetArrayField(TEXT("conditions"), SubCondsArr))
+    {
+        for (const TSharedPtr<FJsonValue>& SubVal : *SubCondsArr)
+        {
+            const TSharedPtr<FJsonObject>* SubObj;
+            if (SubVal->TryGetObject(SubObj))
+            {
+                FAICondition SubCond;
+                ParseCondition(*SubObj, SubCond);
+                OutCond.SubConditions.Add(SubCond);
+            }
+        }
+    }
     
     return true;
 }
@@ -370,6 +390,48 @@ FString FEAISJsonSerializer::SerializeRuntime(const FAIBehaviorDef& InDef)
         StateObj->SetArrayField(TEXT("onTick"), SerializeActions(State.OnTick));
         StateObj->SetArrayField(TEXT("onExit"), SerializeActions(State.OnExit));
         
+        // Helper to serialize condition recursively
+        auto SerializeCondition = [&](auto& Self, const FAICondition& Cond) -> TSharedPtr<FJsonObject>
+        {
+            TSharedPtr<FJsonObject> CondObj = MakeShared<FJsonObject>();
+            CondObj->SetStringField(TEXT("type"), ConditionTypeToString(Cond.Type));
+            
+            // Only leaf conditions use these fields
+            if (Cond.Type != EAIConditionType::And && 
+                Cond.Type != EAIConditionType::Or && 
+                Cond.Type != EAIConditionType::Not)
+            {
+                CondObj->SetStringField(TEXT("keyOrName"), Cond.Name);
+                CondObj->SetStringField(TEXT("op"), OperatorToString(Cond.Operator));
+                
+                TSharedPtr<FJsonObject> CompareObj = MakeShared<FJsonObject>();
+                CompareObj->SetStringField(TEXT("type"), TEXT("String")); // Default to string
+                CompareObj->SetStringField(TEXT("rawValue"), Cond.Value);
+                CondObj->SetObjectField(TEXT("compareValue"), CompareObj);
+                
+                if (Cond.Seconds > 0.f)
+                {
+                    CondObj->SetNumberField(TEXT("seconds"), Cond.Seconds);
+                }
+                if (!Cond.Target.IsEmpty())
+                {
+                    CondObj->SetStringField(TEXT("target"), Cond.Target);
+                }
+            }
+            else
+            {
+                // Composite conditions have 'conditions' array
+                TArray<TSharedPtr<FJsonValue>> SubArr;
+                for (const FAICondition& Sub : Cond.SubConditions)
+                {
+                    SubArr.Add(MakeShared<FJsonValueObject>(Self(Self, Sub)));
+                }
+                CondObj->SetArrayField(TEXT("conditions"), SubArr);
+            }
+            
+            return CondObj;
+        };
+
         // Serialize transitions
         TArray<TSharedPtr<FJsonValue>> TransArr;
         for (const FAITransition& Trans : State.Transitions)
@@ -378,26 +440,10 @@ FString FEAISJsonSerializer::SerializeRuntime(const FAIBehaviorDef& InDef)
             TransObj->SetStringField(TEXT("to"), Trans.To);
             TransObj->SetNumberField(TEXT("priority"), Trans.Priority);
             
-            TSharedPtr<FJsonObject> CondObj = MakeShared<FJsonObject>();
-            CondObj->SetStringField(TEXT("type"), ConditionTypeToString(Trans.Condition.Type));
-            CondObj->SetStringField(TEXT("keyOrName"), Trans.Condition.Name);
-            CondObj->SetStringField(TEXT("op"), OperatorToString(Trans.Condition.Operator));
+            // Allow lambda recursion
+            auto RecursiveSerializer = [&](const FAICondition& C) { return SerializeCondition(SerializeCondition, C); };
+            TransObj->SetObjectField(TEXT("condition"), RecursiveSerializer(Trans.Condition));
             
-            TSharedPtr<FJsonObject> CompareObj = MakeShared<FJsonObject>();
-            CompareObj->SetStringField(TEXT("type"), TEXT("String")); // Default to string
-            CompareObj->SetStringField(TEXT("rawValue"), Trans.Condition.Value);
-            CondObj->SetObjectField(TEXT("compareValue"), CompareObj);
-            
-            if (Trans.Condition.Seconds > 0.f)
-            {
-                CondObj->SetNumberField(TEXT("seconds"), Trans.Condition.Seconds);
-            }
-            if (!Trans.Condition.Target.IsEmpty())
-            {
-                CondObj->SetStringField(TEXT("target"), Trans.Condition.Target);
-            }
-            
-            TransObj->SetObjectField(TEXT("condition"), CondObj);
             TransArr.Add(MakeShared<FJsonValueObject>(TransObj));
         }
         StateObj->SetArrayField(TEXT("transitions"), TransArr);
