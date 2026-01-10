@@ -95,6 +95,15 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
     float AcceptanceRadius = 50.0f;
     EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, true, true);
     
+    if (Result == EPathFollowingRequestResult::Failed)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UAIAction_MoveTo: MoveToLocation FAILED for %s -> %s. NavMesh might be missing or target unreachable."), *Pawn->GetName(), *TargetLocation.ToString());
+    }
+    else
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("UAIAction_MoveTo: MoveToLocation Request: %s"), *UEnum::GetValueAsString(Result));
+    }
+
     PathFollowingComp = AIController->GetPathFollowingComponent();
 }
 

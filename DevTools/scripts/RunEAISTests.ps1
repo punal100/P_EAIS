@@ -224,15 +224,37 @@ Write-Log "═══════════════════════
 
 $validateScript = Join-Path $ScriptDir "ValidateAIJson.ps1"
 if (Test-Path $validateScript) {
+    
     $profilesDir = Join-Path $PluginRoot "Content\AIProfiles"
     $editorDir = Join-Path $PluginRoot "Editor\AI"
+
+    # 2a. Check P_MiniFootball profiles if available
+    $mfProfilesPathRaw = Join-Path $PluginRoot "..\P_MiniFootball\Content\AIProfiles"
+    if (Test-Path $mfProfilesPathRaw) {
+        $mfProfilesDir = (Resolve-Path $mfProfilesPathRaw).Path
+        Write-Log "Validating P_MiniFootball Profiles: $mfProfilesDir"
+        $mfValidateResult = & $validateScript -ProfilesDir $mfProfilesDir -EditorDir $editorDir
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "P_MiniFootball JSON Validation PASSED" -Level Success
+            $testResults += "MF_JSONValidation: PASS"
+        }
+        else {
+            Write-Log "P_MiniFootball JSON Validation FAILED" -Level Error
+            $testResults += "MF_JSONValidation: FAIL"
+            $allPassed = $false
+        }
+    }
+
+    Write-Host ""
+    
+    
     $validateResult = & $validateScript -ProfilesDir $profilesDir -EditorDir $editorDir
     if ($LASTEXITCODE -eq 0) {
-        Write-Log "JSON Validation PASSED" -Level Success
+        Write-Log "P_EAIS JSON Validation PASSED" -Level Success
         $testResults += "JSONValidation: PASS"
     }
     else {
-        Write-Log "JSON Validation FAILED" -Level Error
+        Write-Log "P_EAIS JSON Validation FAILED" -Level Error
         $testResults += "JSONValidation: FAIL"
         $allPassed = $false
     }
@@ -460,6 +482,7 @@ $requiredFiles = @(
     "README.md",
     "GUIDE.md",
     "Source\P_EAIS\Public\EAIS_Types.h",
+    "Source\P_EAIS\Public\EAISSettings.h",
     "Source\P_EAIS\Public\AIInterpreter.h",
     "Source\P_EAIS\Public\AIComponent.h",
     "Source\P_EAIS_Editor\Public\SEAIS_GraphEditor.h",

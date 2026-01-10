@@ -180,7 +180,20 @@ UAIBehaviour (PrimaryDataAsset)
 
 ---
 
-## 4. Creating AI Profiles
+## 4. Configuration
+
+### Multi-Project Profile Loading
+
+To load profiles from other directories (e.g. from another plugin), add the following to your `DefaultGame.ini`:
+
+```ini
+[/Script/P_EAIS.EAISSettings]
++AdditionalProfilePaths=(Path="/Script/MyPlugin/AIProfiles")
+; Or relative to project content
++AdditionalProfilePaths=(Path="../Plugins/MyPlugin/Content/AIProfiles")
+```
+
+## Creating a Profiles
 
 ### Step 1: Create JSON File
 

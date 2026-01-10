@@ -82,6 +82,15 @@ The editors search for profiles in this order:
 2. `[Project]/Plugins/P_EAIS/Content/AIProfiles/` (git submodule path)
 3. `[ProjectContent]/AIProfiles/` (runtime only, fallback)
 
+### Custom Profile Locations
+
+You can configure additional AI profile search paths in your project's `DefaultGame.ini`:
+
+```ini
+[/Script/P_EAIS.EAISSettings]
++AdditionalProfilePaths=(Path="../Plugins/MyPlugin/Content/AIProfiles")
+```
+
 ### 2. Add AI to a Pawn
 
 ```cpp

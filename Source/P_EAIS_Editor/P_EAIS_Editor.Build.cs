@@ -29,7 +29,8 @@ public class P_EAIS_Editor : ModuleRules
             "ToolMenus",
             "EditorFramework",
             "ApplicationCore",
-            "PropertyEditor"
+            "PropertyEditor",
+            "DeveloperSettings",
         });
     }
 }
