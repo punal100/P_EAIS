@@ -51,6 +51,14 @@ public:
     UPROPERTY(meta = (BindWidget))
     UTextBlock* ProfileNameText;
 
+    /** Runtime profiles directory display (optional - shows resolved path) */
+    UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* RuntimePathText;
+
+    /** Editor profiles directory display (optional - shows resolved path) */
+    UPROPERTY(meta = (BindWidgetOptional))
+    UTextBlock* EditorPathText;
+
     // ==================== Buttons ====================
 
     /** Open the graph editor tab */

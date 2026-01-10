@@ -17,7 +17,9 @@ This guide covers the implementation details, extension points, and workflow for
 9. [Input Injection](#9-input-injection)
 10. [CI/Automation](#11-ciautomation)
 11. [Best Practices](#12-best-practices)
-12. [Target Resolution & Action Execution](#13-target-resolution--action-execution)
+12. [Troubleshooting](#13-troubleshooting)
+13. [Target Resolution & Action Execution](#14-target-resolution--action-execution)
+14. [Game Integration Patterns](#15-game-integration-patterns)
 
 ---
 
@@ -182,7 +184,15 @@ UAIBehaviour (PrimaryDataAsset)
 
 ### Step 1: Create JSON File
 
-Create `Content/AIProfiles/MyAI.runtime.json`:
+Create `Content/AIProfiles/MyAI.runtime.json`.
+
+> [!TIP]
+> See **P_MiniFootball** for concrete examples:
+> - `Striker.runtime.json` - Attack & Shooting
+> - `Midfielder.runtime.json` - Support & Transition
+> - `Defender.runtime.json` - Marking & Clearing
+> - `Goalkeeper.runtime.json` - Goal Protection
+
 
 ```json
 {
@@ -515,7 +525,75 @@ Shows:
 
 ---
 
-## 13. Target Resolution & Action Execution
+## 13. Troubleshooting
+
+### 13.1 "Failed to load file" Error
+
+**Symptom:** When validating or loading a profile, you see "Validation failed: Failed to load file"
+
+**Causes & Solutions:**
+
+1. **Profile file doesn't exist at expected path**
+   - Check the path displayed in the AI Editor widget toolbar
+   - The widget shows absolute paths (e.g., `D:\Projects\...\P_EAIS\Content\AIProfiles\`)
+   - Ensure file exists with correct extension (`.runtime.json` or `.editor.json`)
+
+2. **Using wrong file extension**
+   - Runtime profiles: `ProfileName.runtime.json`
+   - Editor profiles: `ProfileName.editor.json`
+   - The system will try both extensions automatically
+
+3. **Relative path not resolved**
+   - Fixed in version 3 of the editors
+   - Paths are now converted to absolute using `FPaths::ConvertRelativePathToFull()`
+
+### 13.2 Profile Not Appearing in Dropdown
+
+1. Verify file extension is `.runtime.json`, `.editor.json`, or `.json`
+2. Check the path displayed in the widget toolbar
+3. Click "Refresh" to rescan directories
+4. Check Output Log for "Found X profiles" messages
+
+### 13.3 Profile Path Discovery
+
+The AI editors search for profiles in this order:
+
+| Priority | Runtime Path | Editor Path |
+|----------|-------------|-------------|
+| 1 | `[ProjectPlugins]/P_EAIS/Content/AIProfiles/` | `[ProjectPlugins]/P_EAIS/Editor/AI/` |
+| 2 | `[Project]/Plugins/P_EAIS/Content/AIProfiles/` | `[Project]/Plugins/P_EAIS/Editor/AI/` |
+| 3 | `[ProjectContent]/AIProfiles/` | N/A |
+
+### 13.4 Verification Script
+
+Run the profile verification script:
+```powershell
+.\DevTools\scripts\VerifyProfilePaths.ps1
+```
+
+This script checks:
+- Directory existence
+- Profile file count
+- JSON syntax validation
+
+Example output:
+```
+[1] Runtime Profiles (D:\...\P_EAIS\Content\AIProfiles)
+    [OK] Found 1 runtime profile(s):
+        - Striker.runtime.json
+
+[2] Editor Profiles (D:\...\P_EAIS\Editor\AI)
+    [OK] Found 1 editor profile(s):
+        - Striker.editor.json
+
+[3] JSON Syntax Validation
+    [OK] Striker.runtime.json
+    [OK] Striker.editor.json
+```
+
+---
+
+## 14. Target Resolution & Action Execution
 
 To keep AI profiles game-agnostic, EAIS uses interfaces to communicate with gameplay code.
 
@@ -562,7 +640,7 @@ The `Execute` action in EAIS acts as a bridge. It looks for this interface on th
 
 ---
 
-## 14. Game Integration Patterns
+## 15. Game Integration Patterns
 
 This section provides reusable patterns for integrating EAIS into ANY game project.
 

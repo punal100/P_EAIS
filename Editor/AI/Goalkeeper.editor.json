@@ -1,0 +1,273 @@
+{
+    "schemaVersion": 1,
+    "name": "Goalkeeper",
+    "initialState": "Main",
+    "states": [
+        {
+            "id": "Main",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Goalkeeper AI Active\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "DistributeBall",
+                    "priority": 1000,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "ChaseBall",
+                    "priority": 800,
+                    "condition": {
+                        "type": "And",
+                        "conditions": [
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "IsBallLoose",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            },
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "DistToBall",
+                                "op": "LessThan",
+                                "compareValue": {
+                                    "type": "Float",
+                                    "rawValue": "1500.0"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "to": "PositionForSave",
+                    "priority": 500,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "OpponentHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "GuardGoal",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "seconds": 0.0
+                    }
+                }
+            ]
+        },
+        {
+            "id": "DistributeBall",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Distributing ball\" }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Pass\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "seconds": 0.5
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ChaseBall",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Coming out for ball!\" }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": true } }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"Ball\" }"
+                }
+            ],
+            "onExit": [
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": false } }"
+                }
+            ],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "GuardGoal",
+                    "priority": 50,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "DistToBall",
+                        "op": "GreaterThan",
+                        "compareValue": {
+                            "type": "Float",
+                            "rawValue": "2000.0"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "PositionForSave",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Positioning for save\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"SupportPosition\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "OpponentHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "GuardGoal",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Guarding goal\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"HomePosition\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "DistToHome",
+                        "op": "LessThan",
+                        "compareValue": {
+                            "type": "Float",
+                            "rawValue": "50.0"
+                        }
+                    }
+                }
+            ]
+        }
+    ],
+    "editor": {
+        "nodes": {
+            "Main": {
+                "pos": {
+                    "x": 100,
+                    "y": 200
+                },
+                "color": "#2A2A2A"
+            },
+            "DistributeBall": {
+                "pos": {
+                    "x": 400,
+                    "y": 50
+                },
+                "color": "#3A5A3A"
+            },
+            "ChaseBall": {
+                "pos": {
+                    "x": 400,
+                    "y": 150
+                },
+                "color": "#3A3A5A"
+            },
+            "PositionForSave": {
+                "pos": {
+                    "x": 400,
+                    "y": 250
+                },
+                "color": "#5A5A3A"
+            },
+            "GuardGoal": {
+                "pos": {
+                    "x": 400,
+                    "y": 350
+                },
+                "color": "#2A2A2A"
+            }
+        },
+        "edges": [],
+        "viewport": {
+            "zoom": 1.0,
+            "pan": {
+                "x": 0,
+                "y": 0
+            }
+        }
+    }
+}

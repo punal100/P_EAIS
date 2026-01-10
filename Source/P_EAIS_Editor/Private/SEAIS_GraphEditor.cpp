@@ -456,66 +456,101 @@ void SEAIS_GraphEditor::ImportFromEditorGraph(const FAIEditorGraph &InGraph)
 
 TSharedRef<SWidget> SEAIS_GraphEditor::CreateToolbar()
 {
-    return SNew(SBorder)
-        .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-        .Padding(FMargin(4.0f))
-            [SNew(SHorizontalBox)
+    return SNew(SVerticalBox)
+        // Path info row - shows users where profiles are located
+        + SVerticalBox::Slot()
+              .AutoHeight()
+              .Padding(4, 2, 4, 0)
+              [
+                  SNew(STextBlock)
+                      .Text_Lambda([this]()
+                      {
+                          return FText::FromString(FString::Printf(
+                              TEXT("Profiles: %s"), *GetProfilesDirectory()));
+                      })
+                      .Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+                      .ColorAndOpacity(FSlateColor(FLinearColor::Gray))
+              ]
+        // Main toolbar row
+        + SVerticalBox::Slot()
+              .AutoHeight()
+              [
+                  SNew(SBorder)
+                      .BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+                      .Padding(FMargin(4.0f))
+                      [
+                          SNew(SHorizontalBox)
 
-             // Profile Label
-             + SHorizontalBox::Slot()
-                   .AutoWidth()
-                   .VAlign(VAlign_Center)
-                   .Padding(0, 0, 8, 0)
-                       [SNew(STextBlock)
-                            .Text(LOCTEXT("ProfileLabel", "Profile:"))]
+                          // Profile Label
+                          + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .VAlign(VAlign_Center)
+                                .Padding(0, 0, 8, 0)
+                                [
+                                    SNew(STextBlock)
+                                        .Text(LOCTEXT("ProfileLabel", "Profile:"))
+                                ]
 
-             // Profile Dropdown
-             + SHorizontalBox::Slot()
-                   .AutoWidth()
-                   .VAlign(VAlign_Center)
-                   .Padding(0, 0, 8, 0)
-                       [SAssignNew(ProfileDropdown, STextComboBox)
-                            .OptionsSource(&ProfileOptions)
-                            .OnSelectionChanged(this, &SEAIS_GraphEditor::OnProfileSelected)
-                            .ToolTipText(LOCTEXT("ProfileDropdownTip", "Select an AI behavior profile"))]
+                          // Profile Dropdown
+                          + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .VAlign(VAlign_Center)
+                                .Padding(0, 0, 8, 0)
+                                [
+                                    SAssignNew(ProfileDropdown, STextComboBox)
+                                        .OptionsSource(&ProfileOptions)
+                                        .OnSelectionChanged(this, &SEAIS_GraphEditor::OnProfileSelected)
+                                        .ToolTipText(LOCTEXT("ProfileDropdownTip", "Select an AI behavior profile"))
+                                ]
 
-             // Load Button
-             + SHorizontalBox::Slot()
-                   .AutoWidth()
-                   .VAlign(VAlign_Center)
-                   .Padding(0, 0, 4, 0)
-                       [SNew(SButton)
-                            .Text(LOCTEXT("LoadButton", "Load"))
-                            .OnClicked_Lambda([this]()
-                                              {
-                    OnLoadProfileClicked();
-                    return FReply::Handled(); })
-                            .ToolTipText(LOCTEXT("LoadButtonTip", "Load the selected profile"))]
+                          // Load Button
+                          + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .VAlign(VAlign_Center)
+                                .Padding(0, 0, 4, 0)
+                                [
+                                    SNew(SButton)
+                                        .Text(LOCTEXT("LoadButton", "Load"))
+                                        .OnClicked_Lambda([this]()
+                                        {
+                                            OnLoadProfileClicked();
+                                            return FReply::Handled();
+                                        })
+                                        .ToolTipText(LOCTEXT("LoadButtonTip", "Load the selected profile"))
+                                ]
 
-             // Refresh Button
-             + SHorizontalBox::Slot()
-                   .AutoWidth()
-                   .VAlign(VAlign_Center)
-                       [SNew(SButton)
-                            .Text(LOCTEXT("RefreshButton", "Refresh"))
-                            .OnClicked_Lambda([this]()
-                                              {
-                    OnRefreshClicked();
-                    return FReply::Handled(); })
-                            .ToolTipText(LOCTEXT("RefreshButtonTip", "Refresh the profile list"))]];
+                          // Refresh Button
+                          + SHorizontalBox::Slot()
+                                .AutoWidth()
+                                .VAlign(VAlign_Center)
+                                [
+                                    SNew(SButton)
+                                        .Text(LOCTEXT("RefreshButton", "Refresh"))
+                                        .OnClicked_Lambda([this]()
+                                        {
+                                            OnRefreshClicked();
+                                            return FReply::Handled();
+                                        })
+                                        .ToolTipText(LOCTEXT("RefreshButtonTip", "Refresh the profile list"))
+                                ]
+                      ]
+              ];
 }
 
 FString SEAIS_GraphEditor::GetEditorProfilesDirectory() const
 {
     // Try plugin directory first (standard install)
-    FString PluginEditorDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI"));
+    // NOTE: Must use ConvertRelativePathToFull() as FPaths functions may return relative paths
+    FString PluginEditorDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI")));
     if (FPaths::DirectoryExists(PluginEditorDir))
     {
         return PluginEditorDir;
     }
 
     // Try alternative plugin location (git submodule / explicit Plugins folder)
-    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Editor/AI"));
+    FString AltPluginDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Editor/AI")));
     if (FPaths::DirectoryExists(AltPluginDir))
     {
         return AltPluginDir;
@@ -530,21 +565,25 @@ FString SEAIS_GraphEditor::GetEditorProfilesDirectory() const
 FString SEAIS_GraphEditor::GetProfilesDirectory() const
 {
     // Try plugin content directory first
-    FString PluginProfilesDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles"));
+    // NOTE: Must use ConvertRelativePathToFull() as FPaths functions may return relative paths
+    FString PluginProfilesDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles")));
     if (FPaths::DirectoryExists(PluginProfilesDir))
     {
         return PluginProfilesDir;
     }
 
     // Try alternative plugin location
-    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Content/AIProfiles"));
+    FString AltPluginDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Content/AIProfiles")));
     if (FPaths::DirectoryExists(AltPluginDir))
     {
         return AltPluginDir;
     }
 
     // Fallback to project content directory
-    FString ProjectProfilesDir = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles"));
+    FString ProjectProfilesDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles")));
     if (FPaths::DirectoryExists(ProjectProfilesDir))
     {
         return ProjectProfilesDir;

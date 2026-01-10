@@ -64,6 +64,24 @@ P_EAIS/
 
 Add P_EAIS to your project's `.uproject` file or enable via Edit → Plugins.
 
+## 📁 Profile Locations
+
+AI profiles are stored in two locations:
+
+| Type | Extension | Path | Purpose |
+|------|-----------|------|---------|
+| Runtime | `*.runtime.json` | `Plugins/P_EAIS/Content/AIProfiles/` | Used at runtime by AI components |
+| Editor | `*.editor.json` | `Plugins/P_EAIS/Editor/AI/` | Contains editor metadata (node positions) |
+
+**Note:** The AI Editor widgets display the resolved absolute paths in their UI, making it easy to see where files should be placed.
+
+### Path Search Order
+
+The editors search for profiles in this order:
+1. `[ProjectPlugins]/P_EAIS/Content/AIProfiles/` (or `Editor/AI/` for editor profiles)
+2. `[Project]/Plugins/P_EAIS/Content/AIProfiles/` (git submodule path)
+3. `[ProjectContent]/AIProfiles/` (runtime only, fallback)
+
 ### 2. Add AI to a Pawn
 
 ```cpp

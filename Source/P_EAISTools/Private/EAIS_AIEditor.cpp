@@ -54,6 +54,18 @@ void UEAIS_AIEditor::NativeConstruct()
         ProfileDropdown->OnSelectionChanged.AddDynamic(this, &UEAIS_AIEditor::OnProfileSelected);
     }
 
+    // Display resolved profile paths (helps users know where to place files)
+    if (RuntimePathText)
+    {
+        RuntimePathText->SetText(FText::FromString(
+            FString::Printf(TEXT("Runtime Profiles: %s"), *GetProfilesDirectory())));
+    }
+    if (EditorPathText)
+    {
+        EditorPathText->SetText(FText::FromString(
+            FString::Printf(TEXT("Editor Profiles: %s"), *GetEditorProfilesDirectory())));
+    }
+
     // Initialize
     RefreshProfileList();
     SetStatus(TEXT("EAIS Editor Ready. Select a profile and click 'Open Graph Editor'."));
@@ -116,15 +128,56 @@ void UEAIS_AIEditor::OnValidateClicked()
         return;
     }
 
-    FString ProfilePath = FPaths::Combine(GetProfilesDirectory(), SelectedProfileName + TEXT(".json"));
+    FString ProfilesDir = GetProfilesDirectory();
+    FString EditorDir = GetEditorProfilesDirectory();
     FString ErrorMessage;
+    bool bValidated = false;
 
-    if (ValidateProfileFile(ProfilePath, ErrorMessage))
+    // Try .editor.json first
+    FString EditorProfilePath = FPaths::Combine(EditorDir, SelectedProfileName + TEXT(".editor.json"));
+    if (FPaths::FileExists(EditorProfilePath))
     {
-        SetStatus(FString::Printf(TEXT("✓ %s is valid!"), *SelectedProfileName));
+        if (ValidateProfileFile(EditorProfilePath, ErrorMessage))
+        {
+            SetStatus(FString::Printf(TEXT("✓ %s.editor.json is valid!"), *SelectedProfileName));
+            bValidated = true;
+        }
     }
-    else
+
+    if (!bValidated)
     {
+        // Try .runtime.json
+        FString RuntimeProfilePath = FPaths::Combine(ProfilesDir, SelectedProfileName + TEXT(".runtime.json"));
+        if (FPaths::FileExists(RuntimeProfilePath))
+        {
+            if (ValidateProfileFile(RuntimeProfilePath, ErrorMessage))
+            {
+                SetStatus(FString::Printf(TEXT("✓ %s.runtime.json is valid!"), *SelectedProfileName));
+                bValidated = true;
+            }
+        }
+    }
+
+    if (!bValidated)
+    {
+        // Try plain .json
+        FString PlainProfilePath = FPaths::Combine(ProfilesDir, SelectedProfileName + TEXT(".json"));
+        if (FPaths::FileExists(PlainProfilePath))
+        {
+            if (ValidateProfileFile(PlainProfilePath, ErrorMessage))
+            {
+                SetStatus(FString::Printf(TEXT("✓ %s.json is valid!"), *SelectedProfileName));
+                bValidated = true;
+            }
+        }
+    }
+
+    if (!bValidated)
+    {
+        if (ErrorMessage.IsEmpty())
+        {
+            ErrorMessage = TEXT("Profile file not found");
+        }
         SetStatus(FString::Printf(TEXT("✕ Validation failed: %s"), *ErrorMessage), true);
     }
 }
@@ -303,21 +356,25 @@ FString UEAIS_AIEditor::GetProfilesDirectory() const
 {
     // Priority: Plugin Content -> Project Content
     // Try plugin content directory first (where profiles typically live)
-    FString PluginProfilesDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles"));
+    // NOTE: Must use ConvertRelativePathToFull() as FPaths functions may return relative paths
+    FString PluginProfilesDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles")));
     if (FPaths::DirectoryExists(PluginProfilesDir))
     {
         return PluginProfilesDir;
     }
 
     // Try alternative plugin location (git submodule path)
-    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Content/AIProfiles"));
+    FString AltPluginDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Content/AIProfiles")));
     if (FPaths::DirectoryExists(AltPluginDir))
     {
         return AltPluginDir;
     }
 
     // Fallback to project content directory
-    FString ProjectProfilesDir = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles"));
+    FString ProjectProfilesDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectContentDir(), TEXT("AIProfiles")));
     if (FPaths::DirectoryExists(ProjectProfilesDir))
     {
         return ProjectProfilesDir;
@@ -330,14 +387,17 @@ FString UEAIS_AIEditor::GetProfilesDirectory() const
 FString UEAIS_AIEditor::GetEditorProfilesDirectory() const
 {
     // Try plugin directory first
-    FString PluginEditorDir = FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI"));
+    // NOTE: Must use ConvertRelativePathToFull() as FPaths functions may return relative paths
+    FString PluginEditorDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Editor/AI")));
     if (FPaths::DirectoryExists(PluginEditorDir))
     {
         return PluginEditorDir;
     }
 
     // Try alternative plugin location (git submodule path)
-    FString AltPluginDir = FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Editor/AI"));
+    FString AltPluginDir = FPaths::ConvertRelativePathToFull(
+        FPaths::Combine(FPaths::ProjectDir(), TEXT("Plugins/P_EAIS/Editor/AI")));
     if (FPaths::DirectoryExists(AltPluginDir))
     {
         return AltPluginDir;
@@ -426,18 +486,21 @@ FString UEAIS_AIEditor::GetWidgetSpec()
 {
     // Simplified spec using ONLY P_MWCS-supported widgets
     // Building JSON string without raw literals to avoid macro issues
+    // Version 3: Added RuntimePathText and EditorPathText for path visibility
     FString Spec;
     Spec += TEXT("{\n");
     Spec += TEXT("  \"WidgetClass\": \"EUW_EAIS_AIEditor\",\n");
     Spec += TEXT("  \"BlueprintName\": \"EUW_EAIS_AIEditor\",\n");
     Spec += TEXT("  \"ParentClass\": \"UEAIS_AIEditor\",\n");
-    Spec += TEXT("  \"Version\": 2,\n");
+    Spec += TEXT("  \"Version\": 3,\n");
     Spec += TEXT("  \"WidgetType\": \"EditorUtilityWidget\",\n");
     Spec += TEXT("  \"RootWidget\": {\n");
     Spec += TEXT("    \"Type\": \"VerticalBox\",\n");
     Spec += TEXT("    \"Children\": [\n");
     Spec += TEXT("      { \"Type\": \"TextBlock\", \"Text\": \"EAIS AI Editor\" },\n");
     Spec += TEXT("      { \"Type\": \"TextBlock\", \"Text\": \"Select profile and Open Graph Editor\" },\n");
+    Spec += TEXT("      { \"Type\": \"TextBlock\", \"Name\": \"RuntimePathText\", \"Text\": \"Runtime: (resolving...)\" },\n");
+    Spec += TEXT("      { \"Type\": \"TextBlock\", \"Name\": \"EditorPathText\", \"Text\": \"Editor: (resolving...)\" },\n");
     Spec += TEXT("      { \"Type\": \"ComboBoxString\", \"Name\": \"ProfileDropdown\" },\n");
     Spec += TEXT("      { \"Type\": \"TextBlock\", \"Name\": \"ProfileNameText\", \"Text\": \"(none)\" },\n");
     Spec += TEXT("      { \"Type\": \"TextBlock\", \"Name\": \"StatusText\", \"Text\": \"Ready\" },\n");

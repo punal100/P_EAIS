@@ -1,0 +1,422 @@
+{
+    "name": "Midfielder",
+    "initialState": "Main",
+    "blackboard": [
+        {
+            "key": "HasBall",
+            "value": {
+                "type": "Bool",
+                "rawValue": "false"
+            }
+        },
+        {
+            "key": "Role",
+            "value": {
+                "type": "String",
+                "rawValue": "Midfielder"
+            }
+        },
+        {
+            "key": "TeamID",
+            "value": {
+                "type": "Float",
+                "rawValue": "0"
+            }
+        }
+    ],
+    "states": [
+        {
+            "id": "Main",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Midfielder AI Active\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "PassToStriker",
+                    "priority": 1000,
+                    "condition": {
+                        "type": "And",
+                        "conditions": [
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "HasBall",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            },
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "HasClearShot",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "false"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "to": "Shoot",
+                    "priority": 900,
+                    "condition": {
+                        "type": "And",
+                        "conditions": [
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "HasBall",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            },
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "HasClearShot",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "to": "DribbleForward",
+                    "priority": 800,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "ChaseBall",
+                    "priority": 700,
+                    "condition": {
+                        "type": "And",
+                        "conditions": [
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "IsBallLoose",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            },
+                            {
+                                "type": "Blackboard",
+                                "keyOrName": "AmIClosestToBall",
+                                "op": "Equal",
+                                "compareValue": {
+                                    "type": "Bool",
+                                    "rawValue": "true"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "to": "SupportDefense",
+                    "priority": 600,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "OpponentHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "SupportAttack",
+                    "priority": 500,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "TeamHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "ControlMidfield",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "seconds": 0.0
+                    }
+                }
+            ]
+        },
+        {
+            "id": "PassToStriker",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Passing to striker\" }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Pass\" }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "seconds": 0.3
+                    }
+                }
+            ]
+        },
+        {
+            "id": "Shoot",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Taking shot!\" }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Face\", \"params\": { \"target\": \"Goal_Opponent\" } }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Shoot\", \"params\": { \"power\": 0.8 } }"
+                }
+            ],
+            "onTick": [],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Timer",
+                        "seconds": 0.5
+                    }
+                }
+            ]
+        },
+        {
+            "id": "DribbleForward",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Dribbling forward\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"Goal_Opponent\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                },
+                {
+                    "to": "Main",
+                    "priority": 50,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "IsInDanger",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ChaseBall",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Chasing ball\" }"
+                },
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": true } }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"Ball\" }"
+                }
+            ],
+            "onExit": [
+                {
+                    "actionName": "Execute",
+                    "paramsJson": "{ \"target\": \"MF.Sprint\", \"params\": { \"active\": false } }"
+                }
+            ],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "HasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "true"
+                        }
+                    }
+                },
+                {
+                    "to": "Main",
+                    "priority": 50,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "AmIClosestToBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "SupportDefense",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Dropping back to defend\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"HomePosition\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "OpponentHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "SupportAttack",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Moving up to support\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"SupportPosition\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "TeamHasBall",
+                        "op": "Equal",
+                        "compareValue": {
+                            "type": "Bool",
+                            "rawValue": "false"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "ControlMidfield",
+            "terminal": false,
+            "onEnter": [
+                {
+                    "actionName": "Log",
+                    "paramsJson": "{ \"message\": \"Holding midfield\" }"
+                }
+            ],
+            "onTick": [
+                {
+                    "actionName": "MoveTo",
+                    "paramsJson": "{ \"target\": \"HomePosition\" }"
+                }
+            ],
+            "onExit": [],
+            "transitions": [
+                {
+                    "to": "Main",
+                    "priority": 100,
+                    "condition": {
+                        "type": "Blackboard",
+                        "keyOrName": "DistToHome",
+                        "op": "LessThan",
+                        "compareValue": {
+                            "type": "Float",
+                            "rawValue": "100.0"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}
