@@ -159,13 +159,22 @@ UAIBehaviour* UEAISSubsystem::LoadBehaviorFromFile(const FString& FilePath)
     }
 
     FString ValidPath;
-    for (const FString& Dir : SearchPaths)
+    
+    // Check if FilePath is already a valid absolute path
+    if (FPaths::FileExists(FilePath))
     {
-        FString TestPath = Dir / FilePath;
-        if (FPaths::FileExists(TestPath))
+        ValidPath = FilePath;
+    }
+    else
+    {
+        for (const FString& Dir : SearchPaths)
         {
-            ValidPath = TestPath;
-            break;
+            FString TestPath = Dir / FilePath;
+            if (FPaths::FileExists(TestPath))
+            {
+                ValidPath = TestPath;
+                break;
+            }
         }
     }
     

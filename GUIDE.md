@@ -184,12 +184,27 @@ UAIBehaviour (PrimaryDataAsset)
 
 ### Multi-Project Profile Loading
 
-To load profiles from other directories (e.g. from another plugin), add the following to your `DefaultGame.ini`:
+EAIS supports loading profiles from external locations (outside P_EAIS plugin directory) in two ways:
+
+**1. Programmatic Loading (Recommended for Plugins):**
+
+When initializing AI from another plugin (e.g. `P_MiniFootball`), you can pass the base directory explicitly to `StartAI`. This is robust and doesn't require INI configuration.
+
+```cpp
+// In your Character::BeginPlay
+FString PluginDir = IPluginManager::Get().FindPlugin("MyGamePlugin")->GetContentDir();
+FString AIProfileDir = FPaths::Combine(PluginDir, TEXT("AIProfiles"));
+
+// Pass the profile name and the explicit search path
+AIComponent->StartAI("MyProfile", AIProfileDir);
+```
+
+**2. Config-based Loading (Legacy/Editor):**
+
+To allow the Editor or default loading logic to find profiles in other paths, add them to `DefaultGame.ini`:
 
 ```ini
 [/Script/P_EAIS.EAISSettings]
-+AdditionalProfilePaths=(Path="/Script/MyPlugin/AIProfiles")
-; Or relative to project content
 +AdditionalProfilePaths=(Path="../Plugins/MyPlugin/Content/AIProfiles")
 ```
 

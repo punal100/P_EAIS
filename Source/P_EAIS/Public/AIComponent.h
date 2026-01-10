@@ -66,9 +66,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "AI")
     bool InitializeAIFromJson(const FString& JsonString, FString& OutError);
 
-    /** Start/Resume the AI */
+    /** Start/Resume the AI with optional profile and path */
     UFUNCTION(BlueprintCallable, Category = "AI")
-    void StartAI();
+    void StartAI(const FString& ProfileName = TEXT(""), const FString& OptionalPath = TEXT(""));
 
     /** Stop/Pause the AI */
     UFUNCTION(BlueprintCallable, Category = "AI")

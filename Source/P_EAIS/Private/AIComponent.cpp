@@ -116,8 +116,34 @@ bool UAIComponent::InitializeAIFromJson(const FString& JsonString, FString& OutE
     return true;
 }
 
-void UAIComponent::StartAI()
+#include "EAIS_ProfileUtils.h"
+#include "EAISSubsystem.h"
+
+void UAIComponent::StartAI(const FString& ProfileName, const FString& OptionalPath)
 {
+    if (!ProfileName.IsEmpty())
+    {
+        UEAISSubsystem* Subsystem = UEAISSubsystem::Get(this);
+        if (Subsystem)
+        {
+            FString ResolvedPath = EAIS_ProfileUtils::ResolveProfilePath(ProfileName, OptionalPath);
+            
+            // If we found a file, load it
+            if (FPaths::FileExists(ResolvedPath))
+            {
+                UAIBehaviour* Behavior = Subsystem->LoadBehaviorFromFile(ResolvedPath);
+                if (Behavior)
+                {
+                    InitializeAI(Behavior);
+                }
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("UAIComponent: Could not resolve profile path for '%s' (Path: %s)"), *ProfileName, *OptionalPath);
+            }
+        }
+    }
+
     if (!Interpreter.IsValid())
     {
         UE_LOG(LogTemp, Warning, TEXT("UAIComponent: StartAI called but interpreter invalid. Resetting."));
