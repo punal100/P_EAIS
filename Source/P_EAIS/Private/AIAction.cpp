@@ -474,26 +474,34 @@ void UAIAction_Execute::Execute_Implementation(UAIComponent* OwnerComponent, con
 
     if (Executor)
     {
-        // Params.Target is the ActionId
-        // Params.ExtraParams can be serialized to JSON if needed, or we just pass a fake JSON for now
-        FString JsonParams = TEXT("{}");
-        if (Params.ExtraParams.Num() > 0)
+        // Construct Inner Params for the action being executed
+        FAIActionParams InnerParams;
+        
+        // Populate InnerParams from the ExtraParams of the Execute action
+        // This assumes the Parser has flattened necessary nested params into ExtraParams
+        if (Params.ExtraParams.Contains(TEXT("target")))
         {
-            // Simple serialization
-            JsonParams = TEXT("{");
-            bool bFirst = true;
-            for (auto& Pair : Params.ExtraParams)
-            {
-                if (!bFirst) JsonParams += TEXT(",");
-                JsonParams += FString::Printf(TEXT("\"%s\":\"%s\""), *Pair.Key, *Pair.Value);
-                bFirst = false;
-            }
-            JsonParams += TEXT("}");
+            InnerParams.Target = Params.ExtraParams[TEXT("target")];
         }
+        
+        if (Params.ExtraParams.Contains(TEXT("power")))
+        {
+            InnerParams.Power = FCString::Atof(*Params.ExtraParams[TEXT("power")]);
+        }
+        else
+        {
+            // Default power passed down? Or use default 1.0
+            InnerParams.Power = 1.0f;
+        }
+
+        // Copy all ExtraParams to InnerParams.ExtraParams so the callee has access to everything
+        InnerParams.ExtraParams = Params.ExtraParams;
+
+        // Remove the mapped keys to avoid confusion? No, keep them for flexibility.
 
         // Pass the actual object that implements the interface (either the Owner or the Component)
         UObject* ImplementingObject = Cast<UObject>(Executor);
-        IEAIS_ActionExecutor::Execute_EAIS_ExecuteAction(ImplementingObject, FName(*Params.Target), JsonParams);
+        IEAIS_ActionExecutor::Execute_EAIS_ExecuteAction(ImplementingObject, FName(*Params.Target), InnerParams);
     }
     else
     {

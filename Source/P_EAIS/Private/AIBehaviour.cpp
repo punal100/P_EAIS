@@ -1,8 +1,4 @@
-/*
- * @Author: Punal Manalan
- * @Description: Implementation of UAIBehaviour
- * @Date: 29/12/2025
- */
+// Copyright Punal Manalan. All Rights Reserved.
 
 #include "AIBehaviour.h"
 #include "Misc/FileHelper.h"
@@ -85,6 +81,45 @@ static void ParseConditionInternal(const TSharedPtr<FJsonObject>& CondObj, FAICo
         else if (OpStr == TEXT("<") || OpStr.Equals(TEXT("LessThan"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::LessThan;
         else if (OpStr == TEXT(">=") || OpStr.Equals(TEXT("GreaterOrEqual"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::GreaterOrEqual;
         else if (OpStr == TEXT("<=") || OpStr.Equals(TEXT("LessOrEqual"), ESearchCase::IgnoreCase)) OutCond.Operator = EAIConditionOperator::LessOrEqual;
+    }
+}
+
+/** Helper to parse action params from JSON */
+static void ParseActionParamsInternal(const TSharedPtr<FJsonObject>& ParamsObj, FAIActionParams& OutParams)
+{
+    if (!ParamsObj.IsValid()) return;
+
+    // Standard fields
+    if (!ParamsObj->TryGetStringField(TEXT("target"), OutParams.Target))
+        ParamsObj->TryGetStringField(TEXT("Target"), OutParams.Target);
+    
+    if (ParamsObj->HasField(TEXT("power"))) OutParams.Power = ParamsObj->GetNumberField(TEXT("power"));
+    else if (ParamsObj->HasField(TEXT("Power"))) OutParams.Power = ParamsObj->GetNumberField(TEXT("Power"));
+    else if (ParamsObj->HasField(TEXT("speed"))) OutParams.Power = ParamsObj->GetNumberField(TEXT("speed"));
+    else if (ParamsObj->HasField(TEXT("Speed"))) OutParams.Power = ParamsObj->GetNumberField(TEXT("Speed"));
+
+    // Flatten all fields to ExtraParams
+    for (const auto& Pair : ParamsObj->Values)
+    {
+        if (Pair.Value->Type == EJson::String)
+            OutParams.ExtraParams.Add(Pair.Key, Pair.Value->AsString());
+        else if (Pair.Value->Type == EJson::Number)
+            OutParams.ExtraParams.Add(Pair.Key, FString::SanitizeFloat(Pair.Value->AsNumber()));
+        else if (Pair.Value->Type == EJson::Boolean)
+            OutParams.ExtraParams.Add(Pair.Key, Pair.Value->AsBool() ? TEXT("true") : TEXT("false"));
+        else if (Pair.Value->Type == EJson::Object)
+        {
+             TSharedPtr<FJsonObject> SubObj = Pair.Value->AsObject();
+             for (const auto& SubPair : SubObj->Values)
+             {
+                 if (SubPair.Value->Type == EJson::String)
+                     OutParams.ExtraParams.Add(SubPair.Key, SubPair.Value->AsString());
+                 else if (SubPair.Value->Type == EJson::Number)
+                     OutParams.ExtraParams.Add(SubPair.Key, FString::SanitizeFloat(SubPair.Value->AsNumber()));
+                 else if (SubPair.Value->Type == EJson::Boolean)
+                     OutParams.ExtraParams.Add(SubPair.Key, SubPair.Value->AsBool() ? TEXT("true") : TEXT("false"));
+             }
+        }
     }
 }
 
@@ -185,6 +220,7 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
     else
     {
         OutDef.Name = BehaviorName;
+        UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: JSON missing 'name' field. Using fallback."));
     }
 
     // Parse blackboard (can be Object or Array format)
@@ -349,19 +385,20 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                 }
                             }
                             
-                            // Parse params
+                            if (Entry.Action.IsEmpty())
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: Action object missing 'action' name"));
+                                continue;
+                            }
+                            
+                            // Parse params using helper
                             TSharedPtr<FJsonObject> ParamsObj;
                             if (ActionObj->HasTypedField<EJson::Object>(TEXT("params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::Object>(TEXT("Params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("Params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
-                                // Parse inner JSON string
                                 FString ParamsJsonStr;
                                 if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
                                 {
@@ -372,24 +409,9 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
-                                {
-                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
-                                }
-                                if (ParamsObj->HasField(TEXT("power")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("power"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Power")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Power"));
-                                }
-                                FString Message;
-                                if (ParamsObj->TryGetStringField(TEXT("message"), Message))
-                                {
-                                    Entry.Params.ExtraParams.Add(TEXT("message"), Message);
-                                }
+                                ParseActionParamsInternal(ParamsObj, Entry.Params);
                             }
+
                             State.OnEnter.Add(Entry);
                         }
                     }
@@ -415,19 +437,21 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                     ActionObj->TryGetStringField(TEXT("actionName"), Entry.Action);
                                 }
                             }
+
+                            if (Entry.Action.IsEmpty())
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: Action object missing 'action' name"));
+                                continue;
+                            }
                             
+                            // Parse params using helper
                             TSharedPtr<FJsonObject> ParamsObj;
                             if (ActionObj->HasTypedField<EJson::Object>(TEXT("params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::Object>(TEXT("Params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("Params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
-                                // Parse inner JSON string
                                 FString ParamsJsonStr;
                                 if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
                                 {
@@ -438,19 +462,9 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
-                                {
-                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
-                                }
-                                if (ParamsObj->HasField(TEXT("speed")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("speed"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Speed")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Speed"));
-                                }
+                                ParseActionParamsInternal(ParamsObj, Entry.Params);
                             }
+
                             State.OnTick.Add(Entry);
                         }
                     }
@@ -534,6 +548,11 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                 {
                     StateObj->TryGetStringField(TEXT("Id"), State.Id);
                 }
+
+                if (State.Id.IsEmpty())
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: State object missing 'id'"));
+                }
                 
                 // Parse OnEnter
                 const TArray<TSharedPtr<FJsonValue>>* OnEnterArray = nullptr;
@@ -555,20 +574,21 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                     ActionObj->TryGetStringField(TEXT("actionName"), Entry.Action);
                                 }
                             }
+
+                            if (Entry.Action.IsEmpty())
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: Action object missing 'action' name"));
+                                continue;
+                            }
                             
-                            // Parse params
+                            // Parse params using helper
                             TSharedPtr<FJsonObject> ParamsObj;
                             if (ActionObj->HasTypedField<EJson::Object>(TEXT("params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::Object>(TEXT("Params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("Params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
-                                // Parse inner JSON string
                                 FString ParamsJsonStr = ActionObj->GetStringField(TEXT("paramsJson"));
                                 TSharedRef<TJsonReader<>> ParamsReader = TJsonReaderFactory<>::Create(ParamsJsonStr);
                                 FJsonSerializer::Deserialize(ParamsReader, ParamsObj);
@@ -576,28 +596,9 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (ParamsObj->HasField(TEXT("target")))
-                                {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("target"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Target")))
-                                {
-                                    Entry.Params.Target = ParamsObj->GetStringField(TEXT("Target"));
-                                }
-                                if (ParamsObj->HasField(TEXT("power")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("power"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Power")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Power"));
-                                }
-                                    FString Message;
-                                    if (ParamsObj->TryGetStringField(TEXT("message"), Message))
-                                    {
-                                        Entry.Params.ExtraParams.Add(TEXT("message"), Message);
-                                    }
+                                ParseActionParamsInternal(ParamsObj, Entry.Params);
                             }
+
                             State.OnEnter.Add(Entry);
                         }
                     }
@@ -623,19 +624,21 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                                     ActionObj->TryGetStringField(TEXT("actionName"), Entry.Action);
                                 }
                             }
+
+                            if (Entry.Action.IsEmpty())
+                            {
+                                UE_LOG(LogTemp, Warning, TEXT("AIBehaviour: Action object missing 'action' name"));
+                                continue;
+                            }
                             
+                            // Parse params using helper
                             TSharedPtr<FJsonObject> ParamsObj;
                             if (ActionObj->HasTypedField<EJson::Object>(TEXT("params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::Object>(TEXT("Params")))
-                            {
                                 ParamsObj = ActionObj->GetObjectField(TEXT("Params"));
-                            }
                             else if (ActionObj->HasTypedField<EJson::String>(TEXT("paramsJson")))
                             {
-                                // Parse inner JSON string
                                 FString ParamsJsonStr;
                                 if (ActionObj->TryGetStringField(TEXT("paramsJson"), ParamsJsonStr))
                                 {
@@ -646,19 +649,9 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             
                             if (ParamsObj.IsValid())
                             {
-                                if (!ParamsObj->TryGetStringField(TEXT("target"), Entry.Params.Target))
-                                {
-                                    ParamsObj->TryGetStringField(TEXT("Target"), Entry.Params.Target);
-                                }
-                                if (ParamsObj->HasField(TEXT("speed")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("speed"));
-                                }
-                                else if (ParamsObj->HasField(TEXT("Speed")))
-                                {
-                                    Entry.Params.Power = ParamsObj->GetNumberField(TEXT("Speed"));
-                                }
+                                ParseActionParamsInternal(ParamsObj, Entry.Params);
                             }
+
                             State.OnTick.Add(Entry);
                         }
                     }
@@ -730,6 +723,7 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
     if (OutDef.States.Num() == 0)
     {
         OutError = TEXT("No states defined in behavior");
+        UE_LOG(LogTemp, Error, TEXT("AIBehaviour: No states defined."));
         return false;
     }
 

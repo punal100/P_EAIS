@@ -76,7 +76,11 @@ bool FEAISJsonEditorParser::LoadFromJson(const FString& JsonString, FAIBehaviorD
 
 void FEAISJsonEditorParser::ParseState(const TSharedPtr<FJsonObject>& StateObj, FAIState& OutState)
 {
-    OutState.Id = StateObj->GetStringField(TEXT("id"));
+    if (!StateObj->TryGetStringField(TEXT("id"), OutState.Id))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("FEAISJsonEditorParser: State has no 'id'"));
+    }
+    
     OutState.bTerminal = StateObj->GetBoolField(TEXT("terminal"));
 
     auto ParseActions = [&](const FString& FieldName, TArray<FAIActionEntry>& OutActions)
@@ -90,7 +94,10 @@ void FEAISJsonEditorParser::ParseState(const TSharedPtr<FJsonObject>& StateObj, 
                 if (ActObj.IsValid())
                 {
                     FAIActionEntry Entry;
-                    Entry.Action = ActObj->GetStringField(TEXT("actionName"));
+                    if (!ActObj->TryGetStringField(TEXT("actionName"), Entry.Action))
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("FEAISJsonEditorParser: Action in state '%s' missing 'actionName'"), *OutState.Id);
+                    }
                     
                     const TSharedPtr<FJsonObject>* ParamsObj;
                     if (ActObj->TryGetObjectField(TEXT("params"), ParamsObj))
@@ -126,7 +133,10 @@ void FEAISJsonEditorParser::ParseState(const TSharedPtr<FJsonObject>& StateObj, 
             if (TransObj.IsValid())
             {
                 FAITransition NewTrans;
-                NewTrans.To = TransObj->GetStringField(TEXT("to"));
+                if (!TransObj->TryGetStringField(TEXT("to"), NewTrans.To))
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("FEAISJsonEditorParser: Transition in state '%s' missing 'to' target"), *OutState.Id);
+                }
                 NewTrans.Priority = TransObj->GetIntegerField(TEXT("priority"));
                 
                 const TSharedPtr<FJsonObject>* CondObj;

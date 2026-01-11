@@ -4,7 +4,7 @@
 [![UE Version](https://img.shields.io/badge/UE-5.x-blue)]()
 [![Status](https://img.shields.io/badge/status-Work%20In%20Progress-yellow)]()
 
-> [!WARNING] > **Work in Progress**: This plugin is under active development. Core functionality is partially working, but some features (especially the Visual AI Editor) may be incomplete or unstable.
+> [!NOTE] > **Latest Updates**: Optimized runtime performance by caching JSON parameters into typed structs. Added comprehensive error logging for invalid JSON fields.
 
 **P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime** and a **Visual AI Editor**.
 
