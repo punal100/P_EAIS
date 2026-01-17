@@ -32,6 +32,12 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
         return;
     }
 
+    UWorld* World = OwnerComponent->GetWorld();
+    if (!World)
+    {
+        return;
+    }
+
     APawn* Pawn = OwnerComponent->GetOwnerPawn();
     if (!Pawn)
     {
@@ -93,6 +99,32 @@ void UAIAction_MoveTo::Execute_Implementation(UAIComponent* OwnerComponent, cons
 
     // Move to target
     float AcceptanceRadius = 50.0f;
+
+    // Avoid repeatedly spamming MoveTo every tick for essentially the same destination.
+    // This is especially important for crowd/avoidance and to prevent visible stutter.
+    {
+        static const FString LastTargetKey = TEXT("__EAIS_LastMoveToTarget");
+        static const FString LastTimeKey = TEXT("__EAIS_LastMoveToTime");
+        constexpr float MinRetargetDistance = 25.0f;  // cm
+        constexpr float MinRetargetInterval = 0.15f;  // seconds
+
+        const FVector LastTarget = OwnerComponent->GetBlackboardVector(LastTargetKey);
+        const float LastTime = OwnerComponent->GetBlackboardFloat(LastTimeKey);
+        const float Now = World->GetTimeSeconds();
+
+        const bool bHasLast = !LastTarget.IsZero() && LastTime > 0.0f;
+        const bool bSameTarget = bHasLast && FVector::DistSquared(LastTarget, TargetLocation) <= FMath::Square(MinRetargetDistance);
+        const bool bTooSoon = bHasLast && (Now - LastTime) < MinRetargetInterval;
+
+        if (bSameTarget && bTooSoon)
+        {
+            return;
+        }
+
+        OwnerComponent->SetBlackboardVector(LastTargetKey, TargetLocation);
+        OwnerComponent->SetBlackboardFloat(LastTimeKey, Now);
+    }
+
     EPathFollowingRequestResult::Type Result = AIController->MoveToLocation(TargetLocation, AcceptanceRadius, true, true, true, true);
     
     if (Result == EPathFollowingRequestResult::Failed)

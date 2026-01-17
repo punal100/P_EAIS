@@ -485,6 +485,23 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             {
                                 TransObj->TryGetStringField(TEXT("to"), Trans.To);
                             }
+
+                            // Parse priority (canonical format)
+                            double PriorityNumber = 0.0;
+                            if (TransObj->TryGetNumberField(TEXT("priority"), PriorityNumber) ||
+                                TransObj->TryGetNumberField(TEXT("Priority"), PriorityNumber))
+                            {
+                                Trans.Priority = static_cast<int32>(PriorityNumber);
+                            }
+                            else
+                            {
+                                FString PriorityString;
+                                if (TransObj->TryGetStringField(TEXT("priority"), PriorityString) ||
+                                    TransObj->TryGetStringField(TEXT("Priority"), PriorityString))
+                                {
+                                    Trans.Priority = FCString::Atoi(*PriorityString);
+                                }
+                            }
                             
                             // Parse condition - check type first to avoid errors
                             TSharedPtr<FJsonValue> ConditionField = TransObj->TryGetField(TEXT("Condition"));
@@ -671,6 +688,23 @@ bool UAIBehaviour::ParseJsonInternal(const FString& JsonString, FAIBehaviorDef& 
                             if (!TransObj->TryGetStringField(TEXT("Target"), Trans.To))
                             {
                                 TransObj->TryGetStringField(TEXT("to"), Trans.To);
+                            }
+
+                            // Parse priority (canonical format)
+                            double PriorityNumber = 0.0;
+                            if (TransObj->TryGetNumberField(TEXT("priority"), PriorityNumber) ||
+                                TransObj->TryGetNumberField(TEXT("Priority"), PriorityNumber))
+                            {
+                                Trans.Priority = static_cast<int32>(PriorityNumber);
+                            }
+                            else
+                            {
+                                FString PriorityString;
+                                if (TransObj->TryGetStringField(TEXT("priority"), PriorityString) ||
+                                    TransObj->TryGetStringField(TEXT("Priority"), PriorityString))
+                                {
+                                    Trans.Priority = FCString::Atoi(*PriorityString);
+                                }
                             }
                             
                             // Parse condition - check type first to avoid errors

@@ -161,15 +161,35 @@ void FAIInterpreter::Tick(float DeltaSeconds)
     // Execute OnTick actions
     ExecuteActions(CurrentState->OnTick);
 
-    // Evaluate transitions (sorted by priority)
-    TArray<FAITransition> SortedTransitions = CurrentState->Transitions;
-    SortedTransitions.Sort([](const FAITransition& A, const FAITransition& B)
+    // Evaluate transitions (sorted by priority, deterministic tie-break by original order)
+    struct FIndexedTransition
     {
-        return A.Priority > B.Priority;
+        int32 Index = 0;
+        FAITransition Transition;
+    };
+
+    TArray<FIndexedTransition> SortedTransitions;
+    SortedTransitions.Reserve(CurrentState->Transitions.Num());
+    for (int32 Index = 0; Index < CurrentState->Transitions.Num(); ++Index)
+    {
+        FIndexedTransition Item;
+        Item.Index = Index;
+        Item.Transition = CurrentState->Transitions[Index];
+        SortedTransitions.Add(MoveTemp(Item));
+    }
+
+    SortedTransitions.Sort([](const FIndexedTransition& A, const FIndexedTransition& B)
+    {
+        if (A.Transition.Priority != B.Transition.Priority)
+        {
+            return A.Transition.Priority > B.Transition.Priority;
+        }
+        return A.Index < B.Index;
     });
 
-    for (const FAITransition& Trans : SortedTransitions)
+    for (const FIndexedTransition& Item : SortedTransitions)
     {
+        const FAITransition& Trans = Item.Transition;
         if (EvaluateCondition(Trans.Condition))
         {
             ForceTransition(Trans.To);

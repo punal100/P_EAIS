@@ -6,6 +6,14 @@
 
 > [!NOTE] > **Latest Updates**: Optimized runtime performance by caching JSON parameters into typed structs. Added comprehensive error logging for invalid JSON fields.
 
+> [!NOTE]
+> **MoveTo stability (Jan 2026)**: The built-in `MoveTo` action now suppresses redundant `MoveToLocation` calls when the requested destination hasn't meaningfully changed within a short interval (per-agent, stored in blackboard keys `__EAIS_LastMoveToTarget` / `__EAIS_LastMoveToTime`).
+> This reduces visible stutter from repeatedly issuing identical MoveTo requests and improves DetourCrowd local avoidance quality.
+
+> [!NOTE]
+> **Transition priority correctness (Jan 2026)**: Runtime JSON parsing now reads transition `priority` into `FAITransition::Priority` (supports both `priority` and `Priority`).
+> When multiple transitions have the same priority, evaluation order is deterministic and follows the original JSON order.
+
 **P_EAIS** is a modular AI plugin for Unreal Engine 5 that provides a **JSON-programmable AI runtime** and a **Visual AI Editor**.
 
 It implements a **Deterministic, Server-Authoritative Hybrid FSM/BT Runtime**, ensuring AI behavior is transparent, predictable, and replay-safe.
