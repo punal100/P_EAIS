@@ -828,7 +828,65 @@ FEAIS_ActionResult UMyActionExecutor::EAIS_ExecuteAction_Implementation(
 }
 ```
 
-### 14.4 Event Injection Pattern
+### 14.4 Custom MoveTo Actions
+
+While EAIS provides a built-in `MoveTo` action that uses `AAIController::MoveToLocation()`, games may need custom movement logic. For example, in P_MiniFootball, we implement `MF.MoveTo` which:
+
+1. Uses `AddMovementInput()` directly on the Character (works without AIController)
+2. Supports the same `target` parameter resolution via `IEAIS_TargetProvider`
+3. Bypasses NavMesh requirements
+
+**When to use custom MoveTo:**
+- Pawn may not have an `AAIController` attached
+- NavMesh isn't built or needed for your game
+- You need precise control over movement behavior
+
+**Example custom MoveTo:**
+```cpp
+FEAIS_ActionResult UMyActionExecutor::HandleMoveTo(const FAIActionParams& Params)
+{
+    FEAIS_ActionResult Result;
+    Result.bSuccess = false;
+
+    if (!OwnerCharacter) return Result;
+
+    FString TargetName = Params.Target.IsEmpty() ? TEXT("Home") : Params.Target;
+    FVector TargetLocation;
+
+    // Resolve target via TargetProvider interface
+    if (!IEAIS_TargetProvider::Execute_EAIS_GetTargetLocation(
+            OwnerCharacter, FName(*TargetName), TargetLocation))
+    {
+        Result.Message = FString::Printf(TEXT("Target not found: %s"), *TargetName);
+        return Result;
+    }
+
+    FVector CurrentLocation = OwnerCharacter->GetActorLocation();
+    float DistToTarget = FVector::Dist2D(CurrentLocation, TargetLocation);
+
+    // Already at destination
+    if (DistToTarget < 75.0f)
+    {
+        Result.bSuccess = true;
+        Result.Message = TEXT("Already at destination");
+        return Result;
+    }
+
+    // Direct movement input (works with any controller type)
+    FVector Direction = (TargetLocation - CurrentLocation).GetSafeNormal2D();
+    OwnerCharacter->AddMovementInput(Direction, 1.0f);
+
+    Result.bSuccess = true;
+    return Result;
+}
+```
+
+Register in your action dispatcher:
+```cpp
+if (ActionId == "MyGame.MoveTo") return HandleMoveTo(Params);
+```
+
+### 14.5 Event Injection Pattern
 
 Inject events from game systems to trigger AI state transitions:
 

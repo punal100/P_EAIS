@@ -24,6 +24,7 @@ public class P_EAIS : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"DeveloperSettings",
 				"InputCore",
 				"NavigationSystem",
 				"AIModule",          // For AAIController, PathFollowingComponent

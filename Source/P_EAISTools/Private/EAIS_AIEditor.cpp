@@ -11,6 +11,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
@@ -354,8 +355,59 @@ void UEAIS_AIEditor::RefreshProfileList()
 
 FString UEAIS_AIEditor::GetProfilesDirectory() const
 {
-    // Priority: Plugin Content -> Project Content
-    // Try plugin content directory first (where profiles typically live)
+    // Priority: Additional paths from settings > Plugin Content > Project Content
+    
+    // First, check AdditionalProfilePaths from settings (same logic as EAISSubsystem)
+    TArray<FString> ConfigSections = {
+        TEXT("/Script/P_EAIS.EAISSettings"),
+        TEXT("/Script/P_EAIS_Editor.EAISSettings")
+    };
+
+    for (const FString& Section : ConfigSections)
+    {
+        TArray<FString> PathEntries;
+        if (GConfig->GetArray(*Section, TEXT("AdditionalProfilePaths"), PathEntries, GGameIni))
+        {
+            for (const FString& Entry : PathEntries)
+            {
+                // Entry format example: (Path="../Plugins/P_MiniFootball/Content/AIProfiles")
+                FString PathValue = Entry;
+                int32 QuoteStart = -1;
+                int32 QuoteEnd = -1;
+                
+                if (PathValue.FindChar('"', QuoteStart))
+                {
+                    if (PathValue.FindLastChar('"', QuoteEnd))
+                    {
+                        if (QuoteEnd > QuoteStart)
+                        {
+                            PathValue = PathValue.Mid(QuoteStart + 1, QuoteEnd - QuoteStart - 1);
+                        }
+                    }
+                }
+                
+                if (!PathValue.IsEmpty() && !PathValue.Contains(TEXT("(")))
+                {
+                    FString FullPath;
+                    if (FPaths::IsRelative(PathValue))
+                    {
+                        FullPath = FPaths::ConvertRelativePathToFull(FPaths::ProjectContentDir() / PathValue);
+                    }
+                    else
+                    {
+                        FullPath = FPaths::ConvertRelativePathToFull(PathValue);
+                    }
+                    
+                    if (FPaths::DirectoryExists(FullPath))
+                    {
+                        return FullPath;
+                    }
+                }
+            }
+        }
+    }
+
+    // Try plugin content directory (where profiles typically live)
     // NOTE: Must use ConvertRelativePathToFull() as FPaths functions may return relative paths
     FString PluginProfilesDir = FPaths::ConvertRelativePathToFull(
         FPaths::Combine(FPaths::ProjectPluginsDir(), TEXT("P_EAIS/Content/AIProfiles")));

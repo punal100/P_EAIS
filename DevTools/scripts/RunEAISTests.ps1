@@ -232,8 +232,10 @@ if (Test-Path $validateScript) {
     $mfProfilesPathRaw = Join-Path $PluginRoot "..\P_MiniFootball\Content\AIProfiles"
     if (Test-Path $mfProfilesPathRaw) {
         $mfProfilesDir = (Resolve-Path $mfProfilesPathRaw).Path
+        # Editor JSON now lives alongside runtime JSON in the game plugin (modularity)
+        $mfEditorDir = $mfProfilesDir
         Write-Log "Validating P_MiniFootball Profiles: $mfProfilesDir"
-        $mfValidateResult = & $validateScript -ProfilesDir $mfProfilesDir -EditorDir $editorDir
+        $mfValidateResult = & $validateScript -ProfilesDir $mfProfilesDir -EditorDir $mfEditorDir
         if ($LASTEXITCODE -eq 0) {
             Write-Log "P_MiniFootball JSON Validation PASSED" -Level Success
             $testResults += "MF_JSONValidation: PASS"

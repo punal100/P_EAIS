@@ -217,23 +217,24 @@ void UAIAction_AimAt::Execute_Implementation(UAIComponent* OwnerComponent, const
     }
 
     FVector TargetLocation = FVector::ZeroVector;
+    bool bTargetFound = false;
 
-    // Check for special targets
-    if (Params.Target.Equals(TEXT("opponentGoal"), ESearchCase::IgnoreCase))
+    // 1. Try TargetProvider first (game-specific resolution)
+    if (IEAIS_TargetProvider* TargetProvider = Cast<IEAIS_TargetProvider>(Pawn))
     {
-        // Find opponent goal
-        TArray<AActor*> FoundActors;
-        UGameplayStatics::GetAllActorsWithTag(OwnerComponent->GetWorld(), FName(TEXT("Goal")), FoundActors);
-        
-        // TODO: Determine which goal is opponent's based on team
-        if (FoundActors.Num() > 0)
-        {
-            TargetLocation = FoundActors[0]->GetActorLocation();
-        }
+        bTargetFound = IEAIS_TargetProvider::Execute_EAIS_GetTargetLocation(Pawn, FName(*Params.Target), TargetLocation);
     }
-    else
+
+    // 2. Fallback to blackboard if TargetProvider didn't handle it
+    if (!bTargetFound)
     {
         TargetLocation = OwnerComponent->GetBlackboardVector(Params.Target);
+        bTargetFound = !TargetLocation.IsZero();
+    }
+
+    if (!bTargetFound)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("UAIAction_AimAt: Could not resolve target '%s'"), *Params.Target);
     }
 
     // Set focus/aim direction
